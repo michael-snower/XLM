@@ -9,10 +9,11 @@ from logging import getLogger
 import os
 import numpy as np
 import torch
+from tqdm import tqdm
 
 from .dataset import StreamDataset, Dataset, ParallelDataset
 from .dictionary import BOS_WORD, EOS_WORD, PAD_WORD, UNK_WORD, MASK_WORD
-
+from .keypoint_dataset import UniformPreprocessor
 
 logger = getLogger()
 
@@ -100,6 +101,39 @@ def set_dico_parameters(params, data, dico):
         params.unk_index = unk_index
         params.mask_index = mask_index
 
+def get_mask_tokens(mask_path, num_keypoints, preprocessor, same_size=True):
+    mask = cv.imread(mask_path)
+    if same_size is True:
+        mask, bbox = preprocessor.process_mask(mask, domain)
+    outline = cv.Laplacian(mask, cv.CV_32F)
+    outline = outline.sum(axis=-1) / 3.
+    contours, _ = cv.findContours(outline.astype(np.uint8), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_NONE)
+    keypoints = contours[0].squeeze()
+    step = len(keypoints) // num_keypoints
+    y = keypoints[::step, 0]
+    x = keypoints[::step, 1]
+    keypoint_vis = np.zeros_like(outline, dtype=np.float32)
+    keypoint_vis[x, y] = 255.
+    return (x, y), keypoint_vis, mask, bbox
+
+def load_keypoints(path, params):
+    # data["dico"] - dictionary, also has unk_index, min_count, max_vocab, ; these will be set in set_dico, hardcode them
+    # data["positions"] - position tokens?
+    # create data dict to mirror words dataset
+    data = {}
+    # tokenize mask to numpy vectors of length equal to number of keypoints
+    Preprocessor = UniformPreprocessor(params.canvas_w, params.canvas_h, params.dataroot)
+    paths = [os.path.join(data_dir, p) for p in os.listdir(data_dir)]
+    pbar = tqdm(paths, desc="Generating tokens from masks")
+    all_keypoints = []
+    for mask_path in pbar:
+        keypoints, keypoint_vis, mask, bbox = get_mask_tokens(mask_path, params.num_keypoints, Preprocessor)
+        x, y = keypoints
+        keypoint_vector = y * params.canvs_w + x
+        all_keypoints.append(keypoint_vector)
+    data["sentences"] = all_keypoints
+
+    return data
 
 def load_mono_data(params, data):
     """
@@ -123,7 +157,10 @@ def load_mono_data(params, data):
                 continue
 
             # load data / update dictionary parameters / update data
-            mono_data = load_binarized(params.mono_dataset[lang][splt], params)
+            if params.keypoints is False:
+                mono_data = load_binarized(params.mono_dataset[lang][splt], params)
+            else:
+                mono_data = load_keypoints(params.mono_dataset[lang][split], params)
             set_dico_parameters(params, data, mono_data['dico'])
 
             # create stream dataset

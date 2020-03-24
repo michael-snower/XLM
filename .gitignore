@@ -1,6 +1,10 @@
 # Created by https://www.gitignore.io/api/python
 # Edit at https://www.gitignore.io/?templates=python
 
+# visualizations and data
+sandbox_output/
+data_samples/
+
 ### Python ###
 # Byte-compiled / optimized / DLL files
 __pycache__/
