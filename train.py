@@ -125,9 +125,9 @@ def get_parser():
                         help="Sort sentences by size during the training")
     parser.add_argument("--batch_size", type=int, default=32,
                         help="Number of sentences per batch")
-    parser.add_argument("--max_batch_size", type=int, default=0,
+    parser.add_argument("--max_batch_size", type=int, default=512,
                         help="Maximum number of sentences per batch (used in combination with tokens_per_batch, 0 to disable)")
-    parser.add_argument("--tokens_per_batch", type=int, default=-1,
+    parser.add_argument("--tokens_per_batch", type=int, default=512,
                         help="Number of tokens per batch")
 
     # training parameters
@@ -213,6 +213,7 @@ def get_parser():
                         help="Master port (for multi-node SLURM jobs)")
 
     # keypoints
+    parser.add_argument("--keypoints", type=bool_flag, default=False)
     parser.add_argument("--num_keypoints", type=int, default=32)
     parser.add_argument("--image_w", type=int, default=256)
     parser.add_argument("--image_h", type=int, default=256)
