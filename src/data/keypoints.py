@@ -209,7 +209,8 @@ def angle_from_center(x, y, image_w, image_h):
 
 def create_keypoint_dictionary(params):
     word2id = {}
-    add2word2id = lambda w, w2i: w2i[w] = len(w2i)
+    def add2word2id(w, w2i):
+        w2i[w] = len(w2i)
     # bos
     add2word2id('<s>', word2id)
     # eos
