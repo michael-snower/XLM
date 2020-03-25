@@ -151,7 +151,7 @@ class UniformPreprocessor(object):
         mask = self._crop_and_pad(mask, bbox, domain)
         return mask, bbox
 
-def _angle_between(x, y):
+def angle_between(x, y):
     ang = np.arctan2(y, x)
     return np.rad2deg((ang) % (2 * np.pi))
 
@@ -160,7 +160,7 @@ def coordinate_from_center(x, y, image_w, image_h):
     center_y = image_h // 2
     x_offset = center_x - x
     y_offset = center_y - y
-    return _angle_between(x_offset, y_offset)
+    return angle_between(x_offset, y_offset)
 
 def get_keypoints(mask, mask_name, num_keypoints):
     outline = cv.Laplacian(mask, cv.CV_32F)
@@ -173,9 +173,13 @@ def get_keypoints(mask, mask_name, num_keypoints):
     y = outline_points[::step, 0]
     x = outline_points[::step, 1]
     angles = coordinate_from_center(x, y, IMAGE_W, IMAGE_H)
+    # coord_ids = np.argsort(angles)
+    # angles = np.sort(angles)
+    # y = y[coord_ids]
+    # x = x[coord_ids]
     outline[...] = 0.
-    for _x, _y, angle in zip(x, y, angles):
-        color = angle / 360. * 180. + 75
+    for i, (_x, _y) in enumerate(zip(x, y)):
+        color = i / 360. * 235. + 20.
         outline[_x, _y] = color
     keypoints_vis_path = os.path.join(SAVE_DIR, mask_name + "_keypoints.png")
     cv.imwrite(keypoints_vis_path, outline)

@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 from .dataset import StreamDataset, Dataset, ParallelDataset
 from .dictionary import BOS_WORD, EOS_WORD, PAD_WORD, UNK_WORD, MASK_WORD
-from .keypoint_dataset import UniformPreprocessor
+from .keypoints import UniformPreprocessor, get_keypoints, create_keypoint_dictionary
 
 logger = getLogger()
 
@@ -23,7 +23,7 @@ def process_binarized(data, params):
     Process a binarized dataset and log main statistics.
     """
     dico = data['dico']
-    assert ((data['sentences'].dtype == np.uint16) and (len(dico) < 1 << 16) or
+    assert ((data['remove_empty_sentences'].dtype == np.uint16) and (len(dico) < 1 << 16) or
             (data['sentences'].dtype == np.int32) and (1 << 16 <= len(dico) < 1 << 31))
     logger.info("%i words (%i unique) in %i sentences. %i unknown words (%i unique) covering %.2f%% of the data." % (
         len(data['sentences']) - len(data['positions']),
@@ -101,39 +101,61 @@ def set_dico_parameters(params, data, dico):
         params.unk_index = unk_index
         params.mask_index = mask_index
 
-def get_mask_tokens(mask_path, num_keypoints, preprocessor, same_size=True):
-    mask = cv.imread(mask_path)
-    if same_size is True:
-        mask, bbox = preprocessor.process_mask(mask, domain)
-    outline = cv.Laplacian(mask, cv.CV_32F)
-    outline = outline.sum(axis=-1) / 3.
-    contours, _ = cv.findContours(outline.astype(np.uint8), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_NONE)
-    keypoints = contours[0].squeeze()
-    step = len(keypoints) // num_keypoints
-    y = keypoints[::step, 0]
-    x = keypoints[::step, 1]
-    keypoint_vis = np.zeros_like(outline, dtype=np.float32)
-    keypoint_vis[x, y] = 255.
-    return (x, y), keypoint_vis, mask, bbox
-
-def load_keypoints(path, params):
-    # data["dico"] - dictionary, also has unk_index, min_count, max_vocab, ; these will be set in set_dico, hardcode them
-    # data["positions"] - position tokens?
-    # create data dict to mirror words dataset
-    data = {}
+def load_keypoints(data_dir, params):
+    '''
+    mirror what is being done in load_binarized
+    # data["dico"] - dictionary
+    # data["sentences"] - vector of all keypoints, dtype=int32
+    # data["positions"] - start end indices of sentences
+    # data["unk_words"] - dictionary, leave empty
+    # keep defaults of: params.max_vocab = -1, params.min_count = 0
     # tokenize mask to numpy vectors of length equal to number of keypoints
-    Preprocessor = UniformPreprocessor(params.canvas_w, params.canvas_h, params.dataroot)
+    '''
+    # create dico
+    dico = create_keypoint_dictionary(params)
+
+    Preprocessor = UniformPreprocessor(params.canvas_w, params.canvas_h, "shp2gir")
     paths = [os.path.join(data_dir, p) for p in os.listdir(data_dir)]
     pbar = tqdm(paths, desc="Generating tokens from masks")
-    all_keypoints = []
+    keypoints = []
+    positions = []
+    cur_start_pos = 0
+    num_discarded = 0
     for mask_path in pbar:
-        keypoints, keypoint_vis, mask, bbox = get_mask_tokens(mask_path, params.num_keypoints, Preprocessor)
-        x, y = keypoints
-        keypoint_vector = y * params.canvs_w + x
-        all_keypoints.append(keypoint_vector)
-    data["sentences"] = all_keypoints
-
-    return data
+        if "A" in data_dir:
+            domain = "A"
+        elif "B" in data_dir:
+            domain = "B"
+        else:
+            raise ValueError("Cannot determine data domain.")
+        cur_keypoints, keypoint_vis, mask, bbox = get_mask_tokens(
+            mask_path, 
+            params.num_keypoints, 
+            Preprocessor, 
+            domain
+        )
+        # discard instances that keypoints cannot be generated for
+        if cur_keypoints is None:
+            logger.info("Skipping {} because sufficient keypoints cannot obatined..".format(mask_path))
+            num_discarded += 1
+            continue
+        x, y = cur_keypoints
+        cur_keypoint_vector = y * params.canvs_w + x
+        all_keypoints.extend(cur_keypoint_vector)
+        cur_position = [cur_start_pos, cur_start_pos + len(cur_keypoints)]
+        cur_start_pos += (len(cur_keypoints) + 1)
+        positions.append(cur_position)
+    logger.info("Split has {:,d} instances. {:,d} were discarded.".format(len(positions), num_discarded))
+    # convert to numpy
+    keypoints = np.asarray(keypoints, dtype=np.int32)
+    positions = np.asarray(positions, dtype=np.int32)
+    # create dictionary for split
+    language_split_data = {}
+    language_split_data["sentences"] = keypoints
+    language_split_data["positions"] = positions
+    language_split_data["unk_words"] = {}
+    language_split_data["dico"] = dico
+    return language_split_data
 
 def load_mono_data(params, data):
     """

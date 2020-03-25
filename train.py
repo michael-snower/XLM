@@ -212,6 +212,11 @@ def get_parser():
     parser.add_argument("--master_port", type=int, default=-1,
                         help="Master port (for multi-node SLURM jobs)")
 
+    # keypoints
+    parser.add_argument("--num_keypoints", type=int, default=32)
+    parser.add_argument("--image_w", type=int, default=256)
+    parser.add_argument("--image_h", type=int, default=256)
+
     return parser
 
 
