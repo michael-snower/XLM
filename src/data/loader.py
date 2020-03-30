@@ -369,27 +369,27 @@ def check_data_params(params):
         assert all([all([os.path.isfile(p) for p in paths.values()]) for paths in params.mono_dataset.values()])
 
     # check parallel datasets
-    required_para_train = set(params.clm_steps + params.mlm_steps + params.pc_steps + params.mt_steps)
-    required_para = required_para_train | set([(l2, l3) for _, l2, l3 in params.bt_steps])
-    params.para_dataset = {
-        (src, tgt): {
-            splt: (os.path.join(params.data_path, '%s.%s-%s.%s.pth' % (splt, src, tgt, src)),
-                   os.path.join(params.data_path, '%s.%s-%s.%s.pth' % (splt, src, tgt, tgt)))
-            for splt in ['train', 'valid', 'test']
-            if splt != 'train' or (src, tgt) in required_para_train or (tgt, src) in required_para_train
-        } for src in params.langs for tgt in params.langs
-        if src < tgt and ((src, tgt) in required_para or (tgt, src) in required_para)
-    }
-    for paths in params.para_dataset.values():
-        for p1, p2 in paths.values():
-            if not os.path.isfile(p1):
-                logger.error(f"{p1} not found")
-            if not os.path.isfile(p2):
-                logger.error(f"{p2} not found")
-    assert all([all([os.path.isfile(p1) and os.path.isfile(p2) for p1, p2 in paths.values()]) for paths in params.para_dataset.values()])
-
-    # check that we can evaluate on BLEU
-    assert params.eval_bleu is False or len(params.mt_steps + params.bt_steps) > 0
+    if params.keypoints is False:
+        required_para_train = set(params.clm_steps + params.mlm_steps + params.pc_steps + params.mt_steps)
+        required_para = required_para_train | set([(l2, l3) for _, l2, l3 in params.bt_steps])
+        params.para_dataset = {
+            (src, tgt): {
+                splt: (os.path.join(params.data_path, '%s.%s-%s.%s.pth' % (splt, src, tgt, src)),
+                       os.path.join(params.data_path, '%s.%s-%s.%s.pth' % (splt, src, tgt, tgt)))
+                for splt in ['train', 'valid', 'test']
+                if splt != 'train' or (src, tgt) in required_para_train or (tgt, src) in required_para_train
+            } for src in params.langs for tgt in params.langs
+            if src < tgt and ((src, tgt) in required_para or (tgt, src) in required_para)
+        }
+        for paths in params.para_dataset.values():
+            for p1, p2 in paths.values():
+                if not os.path.isfile(p1):
+                    logger.error(f"{p1} not found")
+                if not os.path.isfile(p2):
+                    logger.error(f"{p2} not found")
+        assert all([all([os.path.isfile(p1) and os.path.isfile(p2) for p1, p2 in paths.values()]) for paths in params.para_dataset.values()])
+        # check that we can evaluate on BLEU
+        assert params.eval_bleu is False or len(params.mt_steps + params.bt_steps) > 0
 
 
 def load_data(params):
