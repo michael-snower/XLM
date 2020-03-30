@@ -113,11 +113,11 @@ class Trainer(object):
         self.stats = OrderedDict(
             [('processed_s', 0), ('processed_w', 0)] +
             [('CLM-%s' % l, []) for l in params.langs] +
-            [('CLM-%s-%s' % (l1, l2), []) for l1, l2 in data['para'].keys()] +
-            [('CLM-%s-%s' % (l2, l1), []) for l1, l2 in data['para'].keys()] +
+            # [('CLM-%s-%s' % (l1, l2), []) for l1, l2 in data['para'].keys()] +
+            # [('CLM-%s-%s' % (l2, l1), []) for l1, l2 in data['para'].keys()] +
             [('MLM-%s' % l, []) for l in params.langs] +
-            [('MLM-%s-%s' % (l1, l2), []) for l1, l2 in data['para'].keys()] +
-            [('MLM-%s-%s' % (l2, l1), []) for l1, l2 in data['para'].keys()] +
+            # [('MLM-%s-%s' % (l1, l2), []) for l1, l2 in data['para'].keys()] +
+            # [('MLM-%s-%s' % (l2, l1), []) for l1, l2 in data['para'].keys()] +
             [('PC-%s-%s' % (l1, l2), []) for l1, l2 in params.pc_steps] +
             [('AE-%s' % lang, []) for lang in params.ae_steps] +
             [('MT-%s-%s' % (l1, l2), []) for l1, l2 in params.mt_steps] +
@@ -130,6 +130,9 @@ class Trainer(object):
 
         # initialize lambda coefficients and their configurations
         parse_lambda_config(params)
+
+        # keypoints mode
+        self.keypoints = keypoints
 
     def set_parameters(self):
         """

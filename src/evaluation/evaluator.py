@@ -15,6 +15,8 @@ import torch
 from ..utils import to_cuda, restore_segmentation, concat_batches
 from ..model.memory import HashingMemory
 
+from pdb import set_trace as bp
+
 
 BLEU_SCRIPT_PATH = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'multi-bleu.perl')
 assert os.path.isfile(BLEU_SCRIPT_PATH)
@@ -97,7 +99,7 @@ class Evaluator(object):
         if self.params.is_master:
             params.hyp_path = os.path.join(params.dump_path, 'hypotheses')
             subprocess.Popen('mkdir -p %s' % params.hyp_path, shell=True).wait()
-            self.create_reference_files()
+            #self.create_reference_files()
 
     def get_iterator(self, data_set, lang1, lang2=None, stream=False):
         """
@@ -147,45 +149,46 @@ class Evaluator(object):
         """
         Create reference files for BLEU evaluation.
         """
-        params = self.params
-        params.ref_paths = {}
+        pass
+        # params = self.params
+        # params.ref_paths = {}
 
-        for (lang1, lang2), v in self.data['para'].items():
+        # for (lang1, lang2), v in self.data['para'].items():
 
-            assert lang1 < lang2
+        #     assert lang1 < lang2
 
-            for data_set in ['valid', 'test']:
+        #     for data_set in ['valid', 'test']:
 
-                # define data paths
-                lang1_path = os.path.join(params.hyp_path, 'ref.{0}-{1}.{2}.txt'.format(lang2, lang1, data_set))
-                lang2_path = os.path.join(params.hyp_path, 'ref.{0}-{1}.{2}.txt'.format(lang1, lang2, data_set))
+        #         # define data paths
+        #         lang1_path = os.path.join(params.hyp_path, 'ref.{0}-{1}.{2}.txt'.format(lang2, lang1, data_set))
+        #         lang2_path = os.path.join(params.hyp_path, 'ref.{0}-{1}.{2}.txt'.format(lang1, lang2, data_set))
 
-                # store data paths
-                params.ref_paths[(lang2, lang1, data_set)] = lang1_path
-                params.ref_paths[(lang1, lang2, data_set)] = lang2_path
+        #         # store data paths
+        #         params.ref_paths[(lang2, lang1, data_set)] = lang1_path
+        #         params.ref_paths[(lang1, lang2, data_set)] = lang2_path
 
-                # text sentences
-                lang1_txt = []
-                lang2_txt = []
+        #         # text sentences
+        #         lang1_txt = []
+        #         lang2_txt = []
 
-                # convert to text
-                for (sent1, len1), (sent2, len2) in self.get_iterator(data_set, lang1, lang2):
-                    lang1_txt.extend(convert_to_text(sent1, len1, self.dico, params))
-                    lang2_txt.extend(convert_to_text(sent2, len2, self.dico, params))
+        #         # convert to text
+        #         for (sent1, len1), (sent2, len2) in self.get_iterator(data_set, lang1, lang2):
+        #             lang1_txt.extend(convert_to_text(sent1, len1, self.dico, params))
+        #             lang2_txt.extend(convert_to_text(sent2, len2, self.dico, params))
 
-                # replace <unk> by <<unk>> as these tokens cannot be counted in BLEU
-                lang1_txt = [x.replace('<unk>', '<<unk>>') for x in lang1_txt]
-                lang2_txt = [x.replace('<unk>', '<<unk>>') for x in lang2_txt]
+        #         # replace <unk> by <<unk>> as these tokens cannot be counted in BLEU
+        #         lang1_txt = [x.replace('<unk>', '<<unk>>') for x in lang1_txt]
+        #         lang2_txt = [x.replace('<unk>', '<<unk>>') for x in lang2_txt]
 
-                # export hypothesis
-                with open(lang1_path, 'w', encoding='utf-8') as f:
-                    f.write('\n'.join(lang1_txt) + '\n')
-                with open(lang2_path, 'w', encoding='utf-8') as f:
-                    f.write('\n'.join(lang2_txt) + '\n')
+        #         # export hypothesis
+        #         with open(lang1_path, 'w', encoding='utf-8') as f:
+        #             f.write('\n'.join(lang1_txt) + '\n')
+        #         with open(lang2_path, 'w', encoding='utf-8') as f:
+        #             f.write('\n'.join(lang2_txt) + '\n')
 
-                # restore original segmentation
-                restore_segmentation(lang1_path)
-                restore_segmentation(lang2_path)
+        #         # restore original segmentation
+        #         restore_segmentation(lang1_path)
+        #         restore_segmentation(lang2_path)
 
     def mask_out(self, x, lengths, rng):
         """
@@ -227,6 +230,10 @@ class Evaluator(object):
 
             for data_set in ['valid', 'test']:
 
+                # no test set for keypoints
+                if trainer.keypoints is True and data_set == 'test':
+                    continue
+
                 # causal prediction task (evaluate perplexity and accuracy)
                 for lang1, lang2 in params.clm_steps:
                     self.evaluate_clm(scores, data_set, lang1, lang2)
@@ -237,8 +244,9 @@ class Evaluator(object):
 
                 # machine translation task (evaluate perplexity and accuracy)
                 for lang1, lang2 in set(params.mt_steps + [(l2, l3) for _, l2, l3 in params.bt_steps]):
-                    eval_bleu = params.eval_bleu and params.is_master
-                    self.evaluate_mt(scores, data_set, lang1, lang2, eval_bleu)
+                    # eval_bleu = params.eval_bleu and params.is_master
+                    # self.evaluate_mt(scores, data_set, lang1, lang2, eval_bleu)
+                    self.visualize(data_set, lang1, lang2)
 
                 # report average metrics per language
                 _clm_mono = [l1 for (l1, l2) in params.clm_steps if l2 is None]
@@ -414,6 +422,41 @@ class EncDecEvaluator(Evaluator):
         super().__init__(trainer, data, params)
         self.encoder = trainer.encoder
         self.decoder = trainer.decoder
+
+    def visualize(self, data_set, lang1, lang2):
+        self.encoder.eval()
+        self.decoder.eval()
+        encoder = self.encoder.module if params.multi_gpu else self.encoder
+        decoder = self.decoder.module if params.multi_gpu else self.decoder
+
+        lang1_id = params.lang2id[lang1]
+        lang2_id = params.lang2id[lang2]
+
+        for lang in [lang1, lang2]:
+            iterator = self.data['mono_stream'][lang][data_set].get_iterator(shuffle=False, subsample=1)
+            for batch in iterator:
+                (x1, len1), (x2, len2) = batch
+                langs1 = x1.clone().fill_(lang1_id)
+                langs2 = x2.clone().fill_(lang2_id)
+
+                # target words to predict
+                alen = torch.arange(len2.max(), dtype=torch.long, device=len2.device)
+                pred_mask = alen[:, None] < len2[None] - 1  # do not predict anything given the last target word
+                y = x2[1:].masked_select(pred_mask[:-1])
+                assert len(y) == (len2 - 1).sum().item()
+
+                # encode source sentence
+                enc1 = encoder('fwd', x=x1, lengths=len1, langs=langs1, causal=False)
+                enc1 = enc1.transpose(0, 1)
+                enc1 = enc1.half() if params.fp16 else enc1
+
+                # decode target sentence
+                dec2 = decoder('fwd', x=x2, lengths=len2, langs=langs2, causal=True, src_enc=enc1, src_len=len1)
+
+                # generate text
+                max_len = int(1.5 * len1.max().item() + 10)
+                generated, lengths = decoder.generate(enc1, len1, lang2_id, max_len=max_len)
+                convert_to_text(generated, lengths, self.dico, params)
 
     def evaluate_mt(self, scores, data_set, lang1, lang2, eval_bleu):
         """
