@@ -179,6 +179,8 @@ def angle_from_center(x, y, image_w, image_h):
 
 def create_keypoint_dictionary(params):
     word2id = {}
+    for pix_index in range(params.image_w * params.image_h):
+        word2id['pix{}'.format(pix_index)] = pix_index
     # bos
     word2id['<s>'] = params.image_w * params.image_h
     # eos

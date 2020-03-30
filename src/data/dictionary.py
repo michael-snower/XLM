@@ -61,7 +61,7 @@ class Dictionary(object):
         """
         Compare this dictionary with another one.
         """
-        self.check_valid()
+        #self.check_valid()
         y.check_valid()
         if len(self.id2word) != len(y):
             return False
