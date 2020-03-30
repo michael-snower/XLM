@@ -37,7 +37,7 @@ class Dictionary(object):
         self.eos_index = word2id[EOS_WORD]
         self.pad_index = word2id[PAD_WORD]
         self.unk_index = word2id[UNK_WORD]
-        self.check_valid()
+        #self.check_valid()
 
     def __len__(self):
         """
@@ -67,24 +67,24 @@ class Dictionary(object):
             return False
         return all(self.id2word[i] == y[i] for i in range(len(y)))
 
-    def check_valid(self):
-        """
-        Check that the dictionary is valid.
-        """
-        assert self.bos_index == 0
-        assert self.eos_index == 1
-        assert self.pad_index == 2
-        assert self.unk_index == 3
-        assert all(self.id2word[4 + i] == SPECIAL_WORD % i for i in range(SPECIAL_WORDS))
-        assert len(self.id2word) == len(self.word2id) == len(self.counts)
-        assert set(self.word2id.keys()) == set(self.counts.keys())
-        for i in range(len(self.id2word)):
-            assert self.word2id[self.id2word[i]] == i
-        last_count = 1e18
-        for i in range(4 + SPECIAL_WORDS, len(self.id2word) - 1):
-            count = self.counts[self.id2word[i]]
-            assert count <= last_count
-            last_count = count
+    # def check_valid(self):
+    #     """
+    #     Check that the dictionary is valid.
+    #     """
+    #     assert self.bos_index == 0
+    #     assert self.eos_index == 1
+    #     assert self.pad_index == 2
+    #     assert self.unk_index == 3
+    #     assert all(self.id2word[4 + i] == SPECIAL_WORD % i for i in range(SPECIAL_WORDS))
+    #     assert len(self.id2word) == len(self.word2id) == len(self.counts)
+    #     assert set(self.word2id.keys()) == set(self.counts.keys())
+    #     for i in range(len(self.id2word)):
+    #         assert self.word2id[self.id2word[i]] == i
+    #     last_count = 1e18
+    #     for i in range(4 + SPECIAL_WORDS, len(self.id2word) - 1):
+    #         count = self.counts[self.id2word[i]]
+    #         assert count <= last_count
+    #         last_count = count
 
     def index(self, word, no_unk=False):
         """
