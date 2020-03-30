@@ -15,6 +15,8 @@ from .dataset import StreamDataset, Dataset, ParallelDataset
 from .dictionary import BOS_WORD, EOS_WORD, PAD_WORD, UNK_WORD, MASK_WORD
 from .keypoints import UniformPreprocessor, get_keypoints, create_keypoint_dictionary
 
+from pdb import set_trace as bp
+
 logger = getLogger()
 
 
@@ -143,7 +145,7 @@ def load_keypoints(data_dir, params):
             continue
         x, y = cur_keypoints
         cur_keypoint_vector = y * params.image_w + x
-        cur_keypoint_vector += [dico.eos_index]
+        cur_keypoint_vector = np.concatenate([cur_keypoint_vector, [dico.eos_index]])
         keypoints.extend(cur_keypoint_vector)
         # add extra 1 for eos index
         cur_position = [cur_start_pos, cur_start_pos + len(cur_keypoint_vector)]
