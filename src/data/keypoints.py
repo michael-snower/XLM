@@ -187,8 +187,8 @@ def create_keypoint_dictionary(params):
     word2id['<pad>'] = params.image_w * params.image_h + 2
     # unk
     word2id['<unk>'] = params.image_w * params.image_h + 3
-    for i in range(SPECIAL_WORDS):
-        word2id[SPECIAL_WORD % i] = params.image_w * params.image_h + i
+    for i in range(4, SPECIAL_WORDS + 4):
+        word2id[SPECIAL_WORD % params.image_w * params.image_h] = params.image_w * params.image_h + i
     id2word = {v: k for k, v in word2id.items()}
     counts = {k : i for i, k in enumerate(word2id.keys())}
     dico = Dictionary(id2word, word2id, counts)
