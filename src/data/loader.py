@@ -122,13 +122,13 @@ def load_keypoints(data_dir, params):
     cur_start_pos = 0
     num_discarded = 0
     for mask_path in pbar:
-        if "A" in data_dir:
+        if "shp" in data_dir:
             domain = "A"
-        elif "B" in data_dir:
+        elif "gir" in data_dir:
             domain = "B"
         else:
             raise ValueError("Cannot determine data domain.")
-        cur_keypoints, keypoint_vis, mask, bbox = get_mask_tokens(
+        cur_keypoints, keypoint_vis, mask, bbox = get_keypoints(
             mask_path, 
             params.num_keypoints, 
             Preprocessor, 

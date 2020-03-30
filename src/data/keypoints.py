@@ -31,72 +31,42 @@ logger = logging.getLogger(__name__)
 # ]
 
 
-# def is_image_file(filename):
-#     return any(filename.endswith(extension) for extension in IMG_EXTENSIONS)
+def get_enclosing_bbox(mask, thresh=0, bbox_format='xyxy', vis=False):
+    mask = mask.sum(-1) / float(mask.shape[-1])
+    mask_indices = np.argwhere(mask > thresh)
+    if len(mask_indices) > 0:
+        min_y, min_x = np.min(mask_indices, axis=0)
+        max_y, max_x = np.max(mask_indices, axis=0)
+    else:
+        min_y, min_x = 0, 0
+        max_y, max_x = 1, 1
+    if vis:
+        mask = mask.copy()
+        mask = np.stack([mask] * 3, axis=-1)
+        cv.rectangle(
+            mask,
+            (min_x, min_y),
+            (max_x, max_y),
+            (255, 0, 0), 
+            2
+        )
+        cv.rectangle(
+            mask,
+            (0, 0),
+            (199, 199),
+            (0, 255, 0),
+            1
+        )
+        cv.imwrite('test.png', mask)
+    if bbox_format == 'xyxy':
+        return [min_x, min_y, max_x, max_y]
+    elif bbox_format == 'xywh':
+        return xyxy2xywh(min_x, min_y, max_x, max_y)
 
-
-# def make_dataset(dir):
-#     images = []
-#     assert os.path.isdir(dir), '%s is not a valid directory' % dir
-
-#     for root, _, fnames in sorted(os.walk(dir)):
-#         for fname in fnames:
-#             if is_image_file(fname):
-#                 path = os.path.join(root, fname)
-#                 images.append(path)
-
-#     return images
-
-
-# def default_loader(path):
-#     return Image.open(path).convert('RGB')
-
-
-# class ImageFolder(Dataset):
-
-#     def __init__(self, root, transform=None, return_paths=False,
-#                  loader=default_loader):
-#         imgs = make_dataset(root)
-#         if len(imgs) == 0:
-#             raise(RuntimeError("Found 0 images in: " + root + "\n"
-#                                "Supported image extensions are: " +
-#                                ",".join(IMG_EXTENSIONS)))
-
-#         self.root = root
-#         self.imgs = imgs
-#         self.transform = transform
-#         self.return_paths = return_paths
-#         self.loader = loader
-
-#     def __getitem__(self, index):
-#         path = self.imgs[index]
-#         img = self.loader(path)
-#         if self.transform is not None:
-#             img = self.transform(img)
-#         if self.return_paths:
-#             return img, path
-#         else:
-#             return img
-
-#     def __len__(self):
-#         return len(self.imgs)
-
-
-# class BaseDataset(Dataset):
-#     def __init__(self):
-#         super(BaseDataset, self).__init__()
-
-#     def name(self):
-#         return 'BaseDataset'
-
-#     def vis_samples(self):
-#         raise NotImplementedError('Please implement this method in a subclass.')
-
-#     def initialize(self, opt):
-#         pass
-
-#     def __len__(self):
-#         return 0
+def xyxy2xywh(x1, y1, x2, y2):
+    w = x2 - x1
+    h = y2 - y1
+    return [x1, y1, w, h]
 
 
 class UniformPreprocessor(object):
