@@ -141,9 +141,12 @@ def load_keypoints(data_dir, params):
             continue
         x, y = cur_keypoints
         cur_keypoint_vector = y * params.image_w + x
-        all_keypoints.extend(cur_keypoint_vector)
-        cur_position = [cur_start_pos, cur_start_pos + len(cur_keypoints)]
-        cur_start_pos += (len(cur_keypoints) + 1)
+        cur_keypoint_vector += [dico.eos_index]
+        keypoints.extend(cur_keypoint_vector)
+        # add extra 1 for eos index
+        cur_position = [cur_start_pos, cur_start_pos + len(cur_keypoint_vector)]
+        next_start = len(cur_keypoint_vector) + 1
+        cur_start_pos += next_start
         positions.append(cur_position)
     logger.info("Split has {:,d} instances. {:,d} were discarded.".format(len(positions), num_discarded))
     # convert to numpy
