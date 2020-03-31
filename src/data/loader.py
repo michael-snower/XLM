@@ -125,7 +125,7 @@ def load_keypoints(data_dir, params):
     cur_start_pos = 0
     num_discarded = 0
     for mask_index, mask_path in enumerate(pbar):
-        if mask_index > 100:
+        if mask_index > 10000:
             continue
         if "shp" in data_dir:
             domain = "A"

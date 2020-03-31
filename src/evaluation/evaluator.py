@@ -130,7 +130,7 @@ class Evaluator(object):
             else:
                 iterator = self.data['mono'][lang1][data_set].get_iterator(
                     shuffle=False,
-                    group_by_size=True,
+                    group_by_size=False,
                     n_sentences=n_sentences,
                 )
         else:
@@ -423,11 +423,10 @@ class EncDecEvaluator(Evaluator):
         self.encoder = trainer.encoder
         self.decoder = trainer.decoder
 
-    def _generate(self, src_lang, src_id, target_id):
+    def _generate(self, data_set, src_lang, src_id, target_id, params):
         iterator = self.get_iterator(data_set, src_lang)
         with torch.no_grad():
-            for batch1 in iterator:
-                bp()
+            for batch in iterator:
                 x, xlen = batch
 
                 xlangs = x.clone().fill_(src_id)
@@ -435,12 +434,12 @@ class EncDecEvaluator(Evaluator):
                 x, xlen, xlangs = to_cuda(x, xlen, xlangs)
 
                 # encode source sentence
-                enc = encoder('fwd', x=x, lengths=xlen, langs=xlangs, causal=False)
+                enc = self.encoder('fwd', x=x, lengths=xlen, langs=xlangs, causal=False)
                 enc = enc.transpose(0, 1)
                 enc = enc.half() if params.fp16 else enc
 
                 max_len = int(1.5 * xlen.max().item() + 10)
-                generated, lengths = decoder.generate(enc, xlen, target_id, max_len=max_len)
+                generated, lengths = self.decoder.generate(enc, xlen, target_id, max_len=max_len)
                 print(generated)
 
     def evaluate_keypoints(self, data_set, lang1, lang2, params):
@@ -451,8 +450,8 @@ class EncDecEvaluator(Evaluator):
         lang2_id = params.lang2id[lang2]
 
         # generate translations
-        self._generate(lang1, lang1_id, lang2_id)
-        self._generate(lang2, lang2_id, lang1_id)
+        self._generate(data_set, lang1, lang1_id, lang2_id, params)
+        self._generate(data_set, lang2, lang2_id, lang1_id, params)
 
     def evaluate_mt(self, scores, data_set, lang1, lang2, eval_bleu):
         """
