@@ -132,7 +132,7 @@ class Trainer(object):
         parse_lambda_config(params)
 
         # keypoints mode
-        self.keypoints = keypoints
+        self.keypoints = params.keypoints
 
     def set_parameters(self):
         """

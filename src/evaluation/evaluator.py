@@ -246,7 +246,7 @@ class Evaluator(object):
                 for lang1, lang2 in set(params.mt_steps + [(l2, l3) for _, l2, l3 in params.bt_steps]):
                     # eval_bleu = params.eval_bleu and params.is_master
                     # self.evaluate_mt(scores, data_set, lang1, lang2, eval_bleu)
-                    self.visualize(data_set, lang1, lang2)
+                    self.evaluate_keypoints(data_set, lang1, lang2, params)
 
                 # report average metrics per language
                 _clm_mono = [l1 for (l1, l2) in params.clm_steps if l2 is None]
@@ -423,40 +423,36 @@ class EncDecEvaluator(Evaluator):
         self.encoder = trainer.encoder
         self.decoder = trainer.decoder
 
-    def visualize(self, data_set, lang1, lang2):
+    def _generate(self, src_lang, src_id, target_id):
+        iterator = self.get_iterator(data_set, src_lang)
+        with torch.no_grad():
+            for batch1 in iterator:
+                bp()
+                x, xlen = batch
+
+                xlangs = x.clone().fill_(src_id)
+
+                x, xlen, xlangs = to_cuda(x, xlen, xlangs)
+
+                # encode source sentence
+                enc = encoder('fwd', x=x, lengths=xlen, langs=xlangs, causal=False)
+                enc = enc.transpose(0, 1)
+                enc = enc.half() if params.fp16 else enc
+
+                max_len = int(1.5 * xlen.max().item() + 10)
+                generated, lengths = decoder.generate(enc, xlen, target_id, max_len=max_len)
+                print(generated)
+
+    def evaluate_keypoints(self, data_set, lang1, lang2, params):
         self.encoder.eval()
         self.decoder.eval()
-        encoder = self.encoder.module if params.multi_gpu else self.encoder
-        decoder = self.decoder.module if params.multi_gpu else self.decoder
 
         lang1_id = params.lang2id[lang1]
         lang2_id = params.lang2id[lang2]
 
-        for lang in [lang1, lang2]:
-            iterator = self.data['mono_stream'][lang][data_set].get_iterator(shuffle=False, subsample=1)
-            for batch in iterator:
-                (x1, len1), (x2, len2) = batch
-                langs1 = x1.clone().fill_(lang1_id)
-                langs2 = x2.clone().fill_(lang2_id)
-
-                # target words to predict
-                alen = torch.arange(len2.max(), dtype=torch.long, device=len2.device)
-                pred_mask = alen[:, None] < len2[None] - 1  # do not predict anything given the last target word
-                y = x2[1:].masked_select(pred_mask[:-1])
-                assert len(y) == (len2 - 1).sum().item()
-
-                # encode source sentence
-                enc1 = encoder('fwd', x=x1, lengths=len1, langs=langs1, causal=False)
-                enc1 = enc1.transpose(0, 1)
-                enc1 = enc1.half() if params.fp16 else enc1
-
-                # decode target sentence
-                dec2 = decoder('fwd', x=x2, lengths=len2, langs=langs2, causal=True, src_enc=enc1, src_len=len1)
-
-                # generate text
-                max_len = int(1.5 * len1.max().item() + 10)
-                generated, lengths = decoder.generate(enc1, len1, lang2_id, max_len=max_len)
-                convert_to_text(generated, lengths, self.dico, params)
+        # generate translations
+        self._generate(lang1, lang1_id, lang2_id)
+        self._generate(lang2, lang2_id, lang1_id)
 
     def evaluate_mt(self, scores, data_set, lang1, lang2, eval_bleu):
         """
