@@ -428,6 +428,16 @@ class EncDecEvaluator(Evaluator):
         src_id = params.lang2id[src_lang]
         target_id = params.lang2id[targ_lang]
         iterator = self.get_iterator(data_set, src_lang)
+        
+        # create save dir
+        save_dir = params.eval_dir
+        if not os.path.exists(params.save_dir):
+            os.mkdir(save_dir)
+        trans_name = src_lang + "2" + targ_lang
+        save_dir = os.path.join(save_dir, trans_name)
+        if not os.path.exists(params.save_dir):
+            os.mkdir(save_dir)
+
         with torch.no_grad():
             for batch in iterator:
                 x, xlen = batch
@@ -445,21 +455,21 @@ class EncDecEvaluator(Evaluator):
                 generated, lengths = self.decoder.generate(enc, xlen, target_id, max_len=max_len)
                 g = generated.cpu().numpy()
                 for item_index in range(g.shape[1]):
+                    
                     item = g[:, item_index]
                     eos_indices = np.argwhere(item == self.encoder.eos_index)
                     start, end = eos_indices[0].item(), eos_indices[1].item()
                     item = item[start + 1 : end]
-                    # get k y predictions
+
+                    # get keypoint predictions
                     x = item // params.image_w
                     y = item % params.image_h
+
                     # create vis
                     if params.eval_dir != "":
-                        if not os.path.exists(params.eval_dir):
-                            os.mkdir(params.eval_dir)
                         vis = np.zeros((params.image_h, params.image_w))
                         vis[x, y] = 255
-                        trans_name = src_lang + "2" + targ_lang
-                        vis_path = os.path.join(params.eval_dir, trans_name, str(item_index) + ".jpg")
+                        vis_path = os.path.join(save_dir, str(item_index) + ".jpg")
                         cv.imwrite(vis_path, vis)
 
     def evaluate_keypoints(self, data_set, lang1, lang2, params):
