@@ -11,6 +11,7 @@ import subprocess
 from collections import OrderedDict
 import numpy as np
 import torch
+import cv2 as cv
 
 from ..utils import to_cuda, restore_segmentation, concat_batches
 from ..model.memory import HashingMemory
@@ -423,7 +424,9 @@ class EncDecEvaluator(Evaluator):
         self.encoder = trainer.encoder
         self.decoder = trainer.decoder
 
-    def _generate(self, data_set, src_lang, src_id, target_id, params):
+    def _generate(self, data_set, src_lang, targ_lang, params):
+        lang1_id = params.lang2id[src_lang]
+        lang2_id = params.lang2id[targ_lang]
         iterator = self.get_iterator(data_set, src_lang)
         with torch.no_grad():
             for batch in iterator:
@@ -440,18 +443,29 @@ class EncDecEvaluator(Evaluator):
 
                 max_len = int(1.5 * xlen.max().item() + 10)
                 generated, lengths = self.decoder.generate(enc, xlen, target_id, max_len=max_len)
-                print(generated)
+                g = generated.cpu().numpy()
+                for item_index in g.shape[1]:
+                    item = g[:, item_index]
+                    eos_indices = np.argwhere(item == self.encoder.eos_index)
+                    start, end = eos_indices[0].item(), eos_indices[1].item()
+                    item = item[start + 1, end]
+                    # get k y predictions
+                    x = item // params.image_w
+                    y = item % params.image_h
+                    # create vis
+                    vis = np.zeros((params.image_h, params.image_w))
+                    vis[x, y] = 255
+                    trans_name = src_lang + "2" + targ_lang
+                    vis_path = os.path.join(params.eval_dir, trans_name, str(item_index) + ".jpg")
+                    cv.imwrite(vis_path, vis)
 
     def evaluate_keypoints(self, data_set, lang1, lang2, params):
         self.encoder.eval()
         self.decoder.eval()
 
-        lang1_id = params.lang2id[lang1]
-        lang2_id = params.lang2id[lang2]
-
         # generate translations
-        self._generate(data_set, lang1, lang1_id, lang2_id, params)
-        self._generate(data_set, lang2, lang2_id, lang1_id, params)
+        self._generate(data_set, lang1, lang2, params)
+        self._generate(data_set, lang2, lang1, params)
 
     def evaluate_mt(self, scores, data_set, lang1, lang2, eval_bleu):
         """
