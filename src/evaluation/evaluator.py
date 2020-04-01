@@ -431,12 +431,13 @@ class EncDecEvaluator(Evaluator):
         
         # create save dir
         save_dir = params.eval_dir
-        if not os.path.exists(params.save_dir):
+        if not os.path.exists(save_dir):
             os.mkdir(save_dir)
         trans_name = src_lang + "2" + targ_lang
         save_dir = os.path.join(save_dir, trans_name)
-        if not os.path.exists(params.save_dir):
+        if not os.path.exists(save_dir):
             os.mkdir(save_dir)
+        logger.info("Saving eval images to {}".format(save_dir))
 
         with torch.no_grad():
             for batch in iterator:
@@ -453,22 +454,38 @@ class EncDecEvaluator(Evaluator):
 
                 max_len = int(1.5 * xlen.max().item() + 10)
                 generated, lengths = self.decoder.generate(enc, xlen, target_id, max_len=max_len)
-                g = generated.cpu().numpy()
-                for item_index in range(g.shape[1]):
-                    
-                    item = g[:, item_index]
-                    eos_indices = np.argwhere(item == self.encoder.eos_index)
-                    start, end = eos_indices[0].item(), eos_indices[1].item()
-                    item = item[start + 1 : end]
 
-                    # get keypoint predictions
-                    x = item // params.image_w
-                    y = item % params.image_h
+                g = generated.cpu().numpy()
+                x = x.cpu().numpy()
+
+                for item_index in range(g.shape[1]):
+
+                    # get generated keypoint predictions
+                    one_generated = g[:, item_index]
+                    eos_indices = np.argwhere(one_generated == self.encoder.eos_index)
+                    start, end = eos_indices[0].item(), eos_indices[1].item()
+                    one_generated = one_generated[start + 1 : end]
+                    gen_x = one_generated // params.image_w
+                    gen_y = one_generated % params.image_h
+
+                    # get source keypoints
+                    one_src = x[:, item_index]
+                    eos_indices = np.argwhere(one_src == self.encoder.eos_index)
+                    start, end = eos_indices[0].item(), eos_indices[1].item()
+                    one_src = one_src[start + 1 : end]
+                    src_x = one_src // params.image_w
+                    src_y = one_src % params.image_h                    
 
                     # create vis
                     if params.eval_dir != "":
-                        vis = np.zeros((params.image_h, params.image_w))
-                        vis[x, y] = 255
+                        gen_vis = np.zeros((params.image_h, params.image_w))
+                        gen_vis[gen_y, gen_x] = 255
+
+                        src_vis = np.zeros((params.image_h, params.image_w))
+                        src_vis[src_y, src_x] = 255
+
+                        vis = np.concatenate([src_vis, gen_vis], axis=1)
+
                         vis_path = os.path.join(save_dir, str(item_index) + ".jpg")
                         cv.imwrite(vis_path, vis)
 
