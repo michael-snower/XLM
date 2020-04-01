@@ -870,6 +870,12 @@ class EncDecTrainer(Trainer):
         self.stats['processed_s'] += len2.size(0)
         self.stats['processed_w'] += (len2 - 1).sum().item()
 
+    def keypoint_mt_step(self, lang1, lang2, lambda_coeff):
+
+        # smooth l1 loss
+        # low res if necessary
+        pass
+
     def bt_step(self, lang1, lang2, lang3, lambda_coeff):
         """
         Back-translation step for machine translation.

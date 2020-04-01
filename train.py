@@ -183,6 +183,7 @@ def get_parser():
                         help="Reload a pretrained model")
     parser.add_argument("--reload_checkpoint", type=str, default="",
                         help="Reload a checkpoint")
+    parser.add_argument("--model_path", type=str, default="", help="Model path")
 
     # beam search (for MT only)
     parser.add_argument("--beam_size", type=int, default=1,
@@ -235,11 +236,24 @@ def main(params):
     # load data
     data = load_data(params)
 
-    # build model
-    if params.encoder_only:
-        model = build_model(params, data['dico'])
+    # load checkpoint
+    if args.model_path != "":
+        reloaded = torch.load(params.model_path)
+        model_params = AttrDict(reloaded['params'])
+        dico = Dictionary(reloaded['dico_id2word'], reloaded['dico_word2id'], reloaded['dico_counts'])
+        encoder = TransformerModel(model_params, dico, is_encoder=True, with_output=True).cuda().eval()
+        decoder = TransformerModel(model_params, dico, is_encoder=False, with_output=True).cuda().eval()
+        encoder = TransformerModel(model_params, dico, is_encoder=True, with_output=True).cuda().eval()
+        decoder = TransformerModel(model_params, dico, is_encoder=False, with_output=True).cuda().eval()
+        encoder.load_state_dict(reloaded['encoder'])
+        decoder.load_state_dict(reloaded['decoder'])
+        logger.info("Supported languages: %s" % ", ".join(model_params.lang2id.keys()))
     else:
-        encoder, decoder = build_model(params, data['dico'])
+        # build model
+        if params.encoder_only:
+            model = build_model(params, data['dico'])
+        else:
+            encoder, decoder = build_model(params, data['dico'])
 
     # build trainer, reload potential checkpoints / build evaluator
     if params.encoder_only:
