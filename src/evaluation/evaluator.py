@@ -425,8 +425,8 @@ class EncDecEvaluator(Evaluator):
         self.decoder = trainer.decoder
 
     def _generate(self, data_set, src_lang, targ_lang, params):
-        lang1_id = params.lang2id[src_lang]
-        lang2_id = params.lang2id[targ_lang]
+        src_id = params.lang2id[src_lang]
+        target_id = params.lang2id[targ_lang]
         iterator = self.get_iterator(data_set, src_lang)
         with torch.no_grad():
             for batch in iterator:
