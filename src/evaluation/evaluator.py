@@ -444,7 +444,7 @@ class EncDecEvaluator(Evaluator):
                 max_len = int(1.5 * xlen.max().item() + 10)
                 generated, lengths = self.decoder.generate(enc, xlen, target_id, max_len=max_len)
                 g = generated.cpu().numpy()
-                for item_index in g.shape[1]:
+                for item_index in range(g.shape[1]):
                     item = g[:, item_index]
                     eos_indices = np.argwhere(item == self.encoder.eos_index)
                     start, end = eos_indices[0].item(), eos_indices[1].item()
