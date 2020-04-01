@@ -448,12 +448,14 @@ class EncDecEvaluator(Evaluator):
                     item = g[:, item_index]
                     eos_indices = np.argwhere(item == self.encoder.eos_index)
                     start, end = eos_indices[0].item(), eos_indices[1].item()
-                    item = item[start + 1, end]
+                    item = item[start + 1 : end]
                     # get k y predictions
                     x = item // params.image_w
                     y = item % params.image_h
                     # create vis
                     if params.eval_dir != "":
+                        if not os.path.exists(params.eval_dir):
+                            os.mkdir(params.eval_dir)
                         vis = np.zeros((params.image_h, params.image_w))
                         vis[x, y] = 255
                         trans_name = src_lang + "2" + targ_lang
