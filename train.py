@@ -203,6 +203,7 @@ def get_parser():
                         help="Evaluate BLEU score during MT training")
     parser.add_argument("--eval_only", type=bool_flag, default=False,
                         help="Only run evaluations")
+    parser.add_argument("--eval_dir", type=str, default="")
 
     # debug
     parser.add_argument("--debug_train", type=bool_flag, default=False,

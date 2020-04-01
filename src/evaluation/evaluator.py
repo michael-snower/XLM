@@ -453,11 +453,12 @@ class EncDecEvaluator(Evaluator):
                     x = item // params.image_w
                     y = item % params.image_h
                     # create vis
-                    vis = np.zeros((params.image_h, params.image_w))
-                    vis[x, y] = 255
-                    trans_name = src_lang + "2" + targ_lang
-                    vis_path = os.path.join(params.eval_dir, trans_name, str(item_index) + ".jpg")
-                    cv.imwrite(vis_path, vis)
+                    if params.eval_dir != "":
+                        vis = np.zeros((params.image_h, params.image_w))
+                        vis[x, y] = 255
+                        trans_name = src_lang + "2" + targ_lang
+                        vis_path = os.path.join(params.eval_dir, trans_name, str(item_index) + ".jpg")
+                        cv.imwrite(vis_path, vis)
 
     def evaluate_keypoints(self, data_set, lang1, lang2, params):
         self.encoder.eval()
