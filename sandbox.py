@@ -14,13 +14,15 @@ from glob import glob
 import random
 import logging
 
+from argparse import ArgumentParser
+
 from pdb import set_trace as bp
 
-SAMPLE_DIR = "data_samples"
-SAVE_DIR = "sandbox_output"
+SAMPLE_DIR = "shift_samples"
+SAVE_DIR = "shift_output"
 NUM_KEYPOINTS = 128
-IMAGE_W = 512
-IMAGE_H = 512
+IMAGE_W = 256
+IMAGE_H = 256
 
 def get_enclosing_bbox(mask, thresh=0, bbox_format='xyxy', vis=False):
     mask = mask.sum(-1) / float(mask.shape[-1])
@@ -177,28 +179,52 @@ def get_keypoints(mask, mask_name, num_keypoints):
     # angles = np.sort(angles)
     # y = y[coord_ids]
     # x = x[coord_ids]
-    outline[...] = 0.
+    outline[...] = 200.
     for i, (_x, _y) in enumerate(zip(x, y)):
-        color = i / 360. * 235. + 20.
+        if ARGS.vis_ids is True:
+            color = i / 360. * 235. + 20.
+        else:
+            color = 0.
         outline[_x, _y] = color
     keypoints_vis_path = os.path.join(SAVE_DIR, mask_name + "_keypoints.png")
-    cv.imwrite(keypoints_vis_path, outline)
+    #cv.imwrite(keypoints_vis_path, outline)
+    return (x, y), outline
+
+def shift_keypoints(x, y):
+    bp()
+    shfit_vis = np.ones((IMAGE_H, IMAGE_W)) * 200.
+    shif_vis[x, y] = 0.
 
 def main():
     if not os.path.exists(SAVE_DIR):
         os.mkdir(SAVE_DIR)
     mask_filenames = os.listdir(SAMPLE_DIR)
-    Processor = UniformPreprocessor(512, 512, "shp2gir")
-    for mask_filename in mask_filenames:
-        print("Processing {}".format(mask_filename))
-        mask_path = os.path.abspath(os.path.join(SAMPLE_DIR, mask_filename))
-        mask_name = mask_filename.split(".")[0]
-        mask = cv.imread(mask_path)
-        mask, _ = Processor.process_mask(mask, "B")
-        processed_mask_vis_path = os.path.join(SAVE_DIR, mask_name + "_processed.png")
-        cv.imwrite(processed_mask_vis_path, mask)
-        get_keypoints(mask, mask_name, NUM_KEYPOINTS)
-
+    if "extract" in ARGS.tasks:
+        Processor = UniformPreprocessor(IMAGE_W, IMAGE_H, "shp2gir")
+        for mask_filename in mask_filenames:
+            print("Processing {}".format(mask_filename))
+            mask_path = os.path.abspath(os.path.join(SAMPLE_DIR, mask_filename))
+            mask_name = mask_filename.split(".")[0]
+            mask = cv.imread(mask_path)
+            mask, _ = Processor.process_mask(mask, "B")
+            processed_mask_vis_path = os.path.join(SAVE_DIR, mask_name + "_processed.png")
+            cv.imwrite(processed_mask_vis_path, mask)
+            keypoints, keypoints_vis = get_keypoints(mask, mask_name, NUM_KEYPOINTS)
+    if "shift" in ARGS.tasks:
+        keypoints_filenames = mask_filenames
+        for keypoint_filename in keypoints_filenames:
+            print("Processing {}".format(keypoint_filename))
+            keypoint_path = os.path.abspath(os.path.join(SAMPLE_DIR, keypoint_filename))
+            keypoint_name = keypoint_filename.split(".")[0]
+            keypoint_vis = cv.imread(keypoint_path)
+            keypoint_vis = keypoint_vis[:IMAGE_W, :IMAGE_W, 0]
+            keypoints = np.argwhere(keypoint_vis > 250)
+            bp()
+            shift_keypoints(x, y)
 
 if __name__ == "__main__":
+    PARSER = ArgumentParser()
+    PARSER.add_argument("--tasks", nargs="+", default=["extract"]) # shift
+    PARSER.add_argument("--vis_ids", action="store_true")
+    ARGS = PARSER.parse_args()
     main()
