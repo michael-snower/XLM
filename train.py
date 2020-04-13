@@ -222,8 +222,7 @@ def get_parser():
     # keypoints
     parser.add_argument("--keypoints", type=bool_flag, default=False)
     parser.add_argument("--num_keypoints", type=int, default=32)
-    parser.add_argument("--image_w", type=int, default=256)
-    parser.add_argument("--image_h", type=int, default=256)
+    parser.add_argument("--image_dim", type=int, default=256)
 
     return parser
 

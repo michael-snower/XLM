@@ -179,18 +179,18 @@ def angle_from_center(x, y, image_w, image_h):
 
 def create_keypoint_dictionary(params):
     word2id = {}
-    for pix_index in range(params.image_w * params.image_h):
+    for pix_index in range(params.image_dim):
         word2id['pix{}'.format(pix_index)] = pix_index
     # bos
-    word2id['<s>'] = params.image_w * params.image_h
+    word2id['<s>'] = params.image_dim
     # eos
-    word2id['</s>'] = params.image_w * params.image_h + 1
+    word2id['</s>'] = params.image_dim + 1
     # pad
-    word2id['<pad>'] = params.image_w * params.image_h + 2
+    word2id['<pad>'] = params.image_dim + 2
     # unk
-    word2id['<unk>'] = params.image_w * params.image_h + 3
+    word2id['<unk>'] = params.image_dim + 3
     for i in range(4, SPECIAL_WORDS + 4):
-        word2id[SPECIAL_WORD % params.image_w * params.image_h] = params.image_w * params.image_h + i
+        word2id[SPECIAL_WORD % params.image_dim] = params.image_dim + i
     id2word = {v: k for k, v in word2id.items()}
     counts = {k : i for i, k in enumerate(word2id.keys())}
     dico = Dictionary(id2word, word2id, counts)

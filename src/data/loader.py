@@ -117,7 +117,7 @@ def load_keypoints(data_dir, params):
     # create dico
     dico = create_keypoint_dictionary(params)
 
-    Preprocessor = UniformPreprocessor(params.image_w, params.image_h, "shp2gir")
+    Preprocessor = UniformPreprocessor(params.image_dim, params.image_dim, "shp2gir")
     paths = [os.path.join(data_dir, p) for p in os.listdir(data_dir)]
 
     pbar = tqdm(paths, desc="Generating tokens from masks")

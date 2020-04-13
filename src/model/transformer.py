@@ -154,15 +154,14 @@ class XYPredLayer(nn.Module):
     """
     def __init__(self, params):
         super().__init__()
-        self.asm = params.asm
         self.n_words = params.n_words
         self.pad_index = params.pad_index
         dim = params.emb_dim
 
-        self.x_proj = Linear(dim, params.n_words, bias=True)
-        self.y_proj = Linear(dim, params.n_words, bias=True)
+        self.x_proj = Linear(dim, 1, bias=True)
+        self.y_proj = Linear(dim, 1, bias=True)
 
-        self.loss = nn.SmoothL1Loss(reduction="mean")
+        self.loss_fn = nn.SmoothL1Loss(reduction="mean")
 
     def forward(self, hidden_state, x_target, y_target, get_scores=False):
         """
@@ -171,16 +170,16 @@ class XYPredLayer(nn.Module):
         assert (x_target == self.pad_index).sum().item() == 0
         assert (y_target == self.pad_index).sum().item() == 0
 
-        x_values = self.x_proj(hidden_state).view(-1, self.n_words)
-        y_values = self.y_proj(hidden_state).view(-1, self.n_words)
+        x_preds = self.x_proj(hidden_state)
+        y_preds = self.y_proj(hidden_state)
 
         bp()
-        x_loss = self.loss(x_values, x_target)
-        y_loss = self.loss(y_values, y_target)
+        x_loss = self.loss_fn(x_preds, x_target)
+        y_loss = self.loss_fn(y_preds, y_target)
 
         loss = x_loss + y_loss
 
-        return scores, loss
+        return (x_preds, y_preds), loss
 
     # def get_scores(self, x):
     #     """
@@ -485,8 +484,7 @@ class TransformerModel(nn.Module):
             `y` is a LongTensor of shape (pred_mask.sum(),)
             `get_scores` is a boolean specifying whether we need to return scores
         """
-        masked_tensor = tensor[pred_mask.unsqueeze(-1).expand_as(tensor)].view(-1, self.dim)
-        scores, loss = self.pred_layer(masked_tensor, x_target, y_target, get_scores)
+        scores, loss = self.pred_layer(tensor, x_target, y_target, get_scores)
         return scores, loss
 
     def generate(self, src_enc, src_len, tgt_lang_id, max_len=200, sample_temperature=None):

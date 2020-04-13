@@ -351,7 +351,7 @@ class Trainer(object):
             x2[:l[i] - 1, i].copy_(x2[:l[i] - 1, i][torch.from_numpy(permutation)])
         return x2, l
 
-    def keypoint_shuffle(self, x, l):
+    def keypoint_shuffle(self, x, y, l):
         if self.params.word_shuffle == 0:
             return x, y, l
 
@@ -530,9 +530,9 @@ class Trainer(object):
 
     def add_keypoint_noise(self, x, y, lengths):
         # x
-        x, y, lengths = self.keypoint_shuffle(x, lengths)
-        x, y, lengths = self.keypoint_dropout(x, lengths)
-        x, y, lengths = self.keypoint_blank(x, lengths)  
+        x, y, lengths = self.keypoint_shuffle(x, y, lengths)
+        x, y, lengths = self.keypoint_dropout(x, y, lengths)
+        x, y, lengths = self.keypoint_blank(x, y, lengths)  
         return x, y, lengths        
 
     def mask_out(self, x, lengths):
@@ -963,10 +963,12 @@ class EncDecTrainer(Trainer):
         pred_mask = alen[:, None] < len2[None] - 1  # do not predict anything given the last target word
         x_target = x2[1:].masked_select(pred_mask[:-1])
         y_target = y2[1:].masked_select(pred_mask[:-1])
-        assert len(y) == (len2 - 1).sum().item()
+        assert len(x_target) == (len2 - 1).sum().item()
+        assert len(y_target) == (len2 - 1).sum().item()
 
         # cuda
-        x1, y1, len1, langs1, x2, y2, len2, langs2, target = to_cuda(x1, y1, len1, langs1, x2, y2, len2, langs2, target)
+        x1, y1, len1, langs1, x2, y2, len2, langs2, x_target, y_target = \
+            to_cuda(x1, y1, len1, langs1, x2, y2, len2, langs2, x_target, y_target)
 
         # encode source sentence
         enc1 = self.encoder('fwd', x=x1, y=y1, lengths=len1, langs=langs1, causal=False)
