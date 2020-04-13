@@ -11,7 +11,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from .dataset import StreamDataset, Dataset, ParallelDataset
+from .dataset import StreamDataset, Dataset, ParallelDataset, XYDataset
 from .dictionary import BOS_WORD, EOS_WORD, PAD_WORD, UNK_WORD, MASK_WORD
 from .keypoints import UniformPreprocessor, get_keypoints, create_keypoint_dictionary
 
@@ -119,14 +119,17 @@ def load_keypoints(data_dir, params):
 
     Preprocessor = UniformPreprocessor(params.image_w, params.image_h, "shp2gir")
     paths = [os.path.join(data_dir, p) for p in os.listdir(data_dir)]
+
     pbar = tqdm(paths, desc="Generating tokens from masks")
-    keypoints = []
-    positions = []
+    all_x = []
+    all_y = []
     cur_start_pos = 0
     num_discarded = 0
     for mask_index, mask_path in enumerate(pbar):
+
         if mask_index > 10000:
             continue
+
         if "shp" in data_dir:
             domain = "A"
         elif "gir" in data_dir:
@@ -139,30 +142,39 @@ def load_keypoints(data_dir, params):
             Preprocessor, 
             domain
         )
+
         # discard instances that keypoints cannot be generated for
         if cur_keypoints is None:
             logger.info("Skipping {} because sufficient keypoints cannot obatined..".format(mask_path))
             num_discarded += 1
             continue
+
         x, y = cur_keypoints
-        cur_keypoint_vector = y * params.image_w + x
-        cur_keypoint_vector = np.concatenate([cur_keypoint_vector, [dico.eos_index]])
-        keypoints.extend(cur_keypoint_vector)
+        cur_x = np.concatenate([x, [dico.eos_index]])
+        cur_y = np.concatenate([y, [dico.eos_index]])
+        all_x.extend(cur_x)
+        all_y.extend(cur_y)
+
         # add extra 1 for eos index
         cur_position = [cur_start_pos, cur_start_pos + len(cur_keypoint_vector) - 1]
         next_start = len(cur_keypoint_vector)
         cur_start_pos += next_start
         positions.append(cur_position)
+
     logger.info("Split has {:,d} instances. {:,d} were discarded.".format(len(positions), num_discarded))
+
     # convert to numpy
     keypoints = np.asarray(keypoints, dtype=np.int32)
     positions = np.asarray(positions, dtype=np.int32)
+
     # create dictionary for split
     language_split_data = {}
-    language_split_data["sentences"] = keypoints
+    language_split_data["x"] = all_x
+    language_split_data["y"] = all_y
     language_split_data["positions"] = positions
     language_split_data["unk_words"] = {}
     language_split_data["dico"] = dico
+
     return language_split_data
 
 def load_mono_data(params, data):
@@ -198,9 +210,9 @@ def load_mono_data(params, data):
                 mono_data = load_keypoints(params.mono_dataset[lang][splt], params)
             set_dico_parameters(params, data, mono_data['dico'])
 
-            # create stream dataset
-            bs = params.batch_size if splt == 'train' else 1
-            data['mono_stream'][lang][splt] = StreamDataset(mono_data['sentences'], mono_data['positions'], bs, params)
+            # # create stream dataset
+            # bs = params.batch_size if splt == 'train' else 1
+            # data['mono_stream'][lang][splt] = StreamDataset(mono_data['sentences'], mono_data['positions'], bs, params)
 
             # if there are several processes on the same machine, we can split the dataset
             if splt == 'train' and params.split_data and 1 < params.n_gpu_per_node <= data['mono_stream'][lang][splt].n_batches:
@@ -213,7 +225,10 @@ def load_mono_data(params, data):
             if lang in params.ae_steps or lang in params.bt_src_langs:
 
                 # create batched dataset
-                dataset = Dataset(mono_data['sentences'], mono_data['positions'], params)
+                if self.keypoints is False:
+                    dataset = Dataset(mono_data['sentences'], mono_data['positions'], params)
+                else:
+                    dataset = XYDataset(mono_data["x"], mono_data["y"], mono_data["positions"], params)
 
                 # remove empty and too long sentences
                 if splt == 'train':

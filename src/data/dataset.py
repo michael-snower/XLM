@@ -77,6 +77,111 @@ class StreamDataset(object):
             yield torch.from_numpy(self.data[a:b].astype(np.int64)), self.lengths
 
 
+class XYDataset(object):
+
+    def __init__(self, x, y, pos, params):
+
+        self.eos_index = params.eos_index
+        self.pad_index = params.pad_index
+        self.batch_size = params.batch_size
+        self.tokens_per_batch = params.tokens_per_batch
+        self.max_batch_size = params.max_batch_size
+
+        self.x = x
+        self.y = y
+        self.pos = pos
+        self.lengths = self.pos[:, 1] - self.pos[:, 0]
+
+        # check number of sentences
+        assert len(self.pos) == (self.x == self.eos_index).sum()
+        assert len(self.pos) == (self.y == self.eos_index).sum()
+
+    def __len(self):
+        return len(self.pos)
+
+    def batch_sentences(self, x, y):
+        '''
+        x and y are each torch.LongTensor vectors
+        return (slen, n), (slen, n) for x and y where slen is the length of the longest sentence
+        also return lengths, containing the lenght of each sentence
+        '''
+
+        lengths = torch.LongTensor([len(_x) + 2 for _x in x])
+        x_batch = torch.LongTensor(lengths.max().item(), lengths.size(0)).fill_(self.pad_index)
+        y_batch = torch.LongTensor(lengths.max().item(), lengths.size(0)).fill_(self.pad_index)
+
+        x_batch[0], y_batch[0] = self.eos_index, self.eos_index
+        for i, (_x, _y) in enumerate(zip(x, y)):
+            if lengths[i] > 2:  # if sentence not empty
+                x_batch[1:lengths[i] - 1, i].copy_(torch.from_numpy(_x.astype(np.int64)))
+                y_batch[1:lengths[i] - 1, i].copy_(torch.from_numpy(_y.astype(np.int64)))
+            x_batch[lengths[i] - 1, i] = self.eos_index
+            y_batch[lengths[i] - 1, i] = self.eos_index
+
+        return x_batch, y_batch, lengths
+
+    def get_batches_iterator(self, batches, return_indices):
+        """
+        Return a sentences iterator, given the associated sentence batches.
+        """
+        assert type(return_indices) is bool
+
+        for sentence_ids in batches:
+            if 0 < self.max_batch_size < len(sentence_ids):
+                np.random.shuffle(sentence_ids)
+                sentence_ids = sentence_ids[:self.max_batch_size]
+            pos = self.pos[sentence_ids]
+            sent = [self.sent[a:b] for a, b in pos]
+            sent = self.batch_sentences(sent)
+            yield (sent, sentence_ids) if return_indices else sent
+
+    def get_iterator(self, shuffle, group_by_size=False, n_sentences=-1, seed=None, return_indices=False):
+        """
+        Return a sentences iterator.
+        """
+        assert seed is None or shuffle is True and type(seed) is int
+        rng = np.random.RandomState(seed)
+        n_sentences = len(self.pos) if n_sentences == -1 else n_sentences
+        assert 0 < n_sentences <= len(self.pos)
+        assert type(shuffle) is bool and type(group_by_size) is bool
+        assert group_by_size is False or shuffle is True
+
+        # sentence lengths
+        lengths = self.lengths + 2
+
+        # select sentences to iterate over
+        if shuffle:
+            indices = rng.permutation(len(self.pos))[:n_sentences]
+        else:
+            indices = np.arange(n_sentences)
+
+        # group sentences by lengths
+        if group_by_size:
+            indices = indices[np.argsort(lengths[indices], kind='mergesort')]
+
+        # create batches - either have a fixed number of sentences, or a similar number of tokens
+        if self.tokens_per_batch == -1:
+            batches = np.array_split(indices, math.ceil(len(indices) * 1. / self.batch_size))
+        else:
+            batch_ids = np.cumsum(lengths[indices]) // self.tokens_per_batch
+            _, bounds = np.unique(batch_ids, return_index=True)
+            batches = [indices[bounds[i]:bounds[i + 1]] for i in range(len(bounds) - 1)]
+            if bounds[-1] < len(indices):
+                batches.append(indices[bounds[-1]:])
+
+        # optionally shuffle batches
+        if shuffle:
+            rng.shuffle(batches)
+
+        # sanity checks
+        assert n_sentences == sum([len(x) for x in batches])
+        assert lengths[indices].sum() == sum([lengths[x].sum() for x in batches])
+        # assert set.union(*[set(x.tolist()) for x in batches]) == set(range(n_sentences))  # slow
+
+        # return the iterator
+        return self.get_batches_iterator(batches, return_indices)
+
+
 class Dataset(object):
 
     def __init__(self, sent, pos, params):
