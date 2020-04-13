@@ -123,6 +123,7 @@ def load_keypoints(data_dir, params):
     pbar = tqdm(paths, desc="Generating tokens from masks")
     all_x = []
     all_y = []
+    positions = []
     cur_start_pos = 0
     num_discarded = 0
     for mask_index, mask_path in enumerate(pbar):
@@ -156,15 +157,17 @@ def load_keypoints(data_dir, params):
         all_y.extend(cur_y)
 
         # add extra 1 for eos index
-        cur_position = [cur_start_pos, cur_start_pos + len(cur_keypoint_vector) - 1]
-        next_start = len(cur_keypoint_vector)
+        assert len(cur_x) == len(cur_y)
+        cur_position = [cur_start_pos, cur_start_pos + len(cur_x) - 1]
+        next_start = len(cur_x)
         cur_start_pos += next_start
         positions.append(cur_position)
 
     logger.info("Split has {:,d} instances. {:,d} were discarded.".format(len(positions), num_discarded))
 
     # convert to numpy
-    keypoints = np.asarray(keypoints, dtype=np.int32)
+    all_x = np.asarray(all_x, dtype=np.int32)
+    all_y = np.asarray(all_y, dtype=np.int32)
     positions = np.asarray(positions, dtype=np.int32)
 
     # create dictionary for split
@@ -225,13 +228,13 @@ def load_mono_data(params, data):
             if lang in params.ae_steps or lang in params.bt_src_langs:
 
                 # create batched dataset
-                if self.keypoints is False:
+                if params.keypoints is False:
                     dataset = Dataset(mono_data['sentences'], mono_data['positions'], params)
                 else:
                     dataset = XYDataset(mono_data["x"], mono_data["y"], mono_data["positions"], params)
 
                 # remove empty and too long sentences
-                if splt == 'train':
+                if splt == 'train' and params.keypoints is False:
                     dataset.remove_empty_sentences()
                     dataset.remove_long_sentences(params.max_len)
 

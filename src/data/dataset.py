@@ -131,9 +131,10 @@ class XYDataset(object):
                 np.random.shuffle(sentence_ids)
                 sentence_ids = sentence_ids[:self.max_batch_size]
             pos = self.pos[sentence_ids]
-            sent = [self.sent[a:b] for a, b in pos]
-            sent = self.batch_sentences(sent)
-            yield (sent, sentence_ids) if return_indices else sent
+            x = [self.x[a:b] for a, b in pos]
+            y = [self.y[a:b] for a, b in pos]
+            batch = self.batch_sentences(x, y)
+            yield (batch, sentence_ids) if return_indices else batch
 
     def get_iterator(self, shuffle, group_by_size=False, n_sentences=-1, seed=None, return_indices=False):
         """
