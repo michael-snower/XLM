@@ -15,6 +15,8 @@ import torch.nn.functional as F
 
 from .memory import HashingMemory
 
+from pdb import set_trace as bp
+
 
 N_MAX_POSITIONS = 512  # maximum input sequence length
 
@@ -144,6 +146,48 @@ class PredLayer(nn.Module):
         """
         assert x.dim() == 2
         return self.proj.log_prob(x) if self.asm else self.proj(x)
+
+
+class XYPredLayer(nn.Module):
+    """
+    Prediction layer (cross_entropy or adaptive_softmax).
+    """
+    def __init__(self, params):
+        super().__init__()
+        self.asm = params.asm
+        self.n_words = params.n_words
+        self.pad_index = params.pad_index
+        dim = params.emb_dim
+
+        self.x_proj = Linear(dim, params.n_words, bias=True)
+        self.y_proj = Linear(dim, params.n_words, bias=True)
+
+        self.loss = nn.SmoothL1Loss(reduction="mean")
+
+    def forward(self, hidden_state, x_target, y_target, get_scores=False):
+        """
+        Compute the loss, and optionally the scores.
+        """
+        assert (x_target == self.pad_index).sum().item() == 0
+        assert (y_target == self.pad_index).sum().item() == 0
+
+        x_values = self.x_proj(hidden_state).view(-1, self.n_words)
+        y_values = self.y_proj(hidden_state).view(-1, self.n_words)
+
+        bp()
+        x_loss = self.loss(x_values, x_target)
+        y_loss = self.loss(y_values, y_target)
+
+        loss = x_loss + y_loss
+
+        return scores, loss
+
+    # def get_scores(self, x):
+    #     """
+    #     Compute scores.
+    #     """
+    #     assert x.dim() == 2
+    #     return self.proj.log_prob(x) if self.asm else self.proj(x)
 
 
 class MultiHeadAttention(nn.Module):
@@ -278,7 +322,8 @@ class TransformerModel(nn.Module):
             create_sinusoidal_embeddings(N_MAX_POSITIONS, self.dim, out=self.position_embeddings.weight)
         if params.n_langs > 1 and self.use_lang_emb:
             self.lang_embeddings = Embedding(self.n_langs, self.dim)
-        self.embeddings = Embedding(self.n_words, self.dim, padding_idx=self.pad_index)
+        self.x_embeddings = Embedding(self.n_words, self.dim, padding_idx=self.pad_index)
+        self.y_embeddings = Embedding(self.n_words, self.dim, padding_idx=self.pad_index)
         self.layer_norm_emb = nn.LayerNorm(self.dim, eps=1e-12)
 
         # transformer layers
@@ -313,9 +358,12 @@ class TransformerModel(nn.Module):
 
         # output layer
         if self.with_output:
-            self.pred_layer = PredLayer(params)
-            if params.share_inout_emb:
-                self.pred_layer.proj.weight = self.embeddings.weight
+            if params.keypoints is False:
+                self.pred_layer = PredLayer(params)
+                if params.share_inout_emb:
+                    self.pred_layer.proj.weight = self.embeddings.weight
+            else:
+                self.pred_layer = XYPredLayer(params)
 
     def forward(self, mode, **kwargs):
         """
@@ -329,7 +377,7 @@ class TransformerModel(nn.Module):
         else:
             raise Exception("Unknown mode: %s" % mode)
 
-    def fwd(self, x, lengths, causal, src_enc=None, src_len=None, positions=None, langs=None, cache=None):
+    def fwd(self, x, y, lengths, causal, src_enc=None, src_len=None, positions=None, langs=None, cache=None):
         """
         Inputs:
             `x` LongTensor(slen, bs), containing word indices
@@ -346,6 +394,7 @@ class TransformerModel(nn.Module):
         assert lengths.size(0) == bs
         assert lengths.max().item() <= slen
         x = x.transpose(0, 1)  # batch size as dimension 0
+        y = y.transpose(0, 1)
         assert (src_enc is None) == (src_len is None)
         if src_enc is not None:
             assert self.is_decoder
@@ -380,7 +429,8 @@ class TransformerModel(nn.Module):
             attn_mask = attn_mask[:, -_slen:]
 
         # embeddings
-        tensor = self.embeddings(x)
+        tensor = self.x_embeddings(x)
+        tensor = tensor + self.y_embeddings(y)
         tensor = tensor + self.position_embeddings(positions).expand_as(tensor)
         if langs is not None and self.use_lang_emb:
             tensor = tensor + self.lang_embeddings(langs)
@@ -427,7 +477,7 @@ class TransformerModel(nn.Module):
 
         return tensor
 
-    def predict(self, tensor, pred_mask, y, get_scores):
+    def predict(self, tensor, pred_mask, x_target, y_target, get_scores):
         """
         Given the last hidden state, compute word scores and/or the loss.
             `pred_mask` is a ByteTensor of shape (slen, bs), filled with 1 when
@@ -436,7 +486,7 @@ class TransformerModel(nn.Module):
             `get_scores` is a boolean specifying whether we need to return scores
         """
         masked_tensor = tensor[pred_mask.unsqueeze(-1).expand_as(tensor)].view(-1, self.dim)
-        scores, loss = self.pred_layer(masked_tensor, y, get_scores)
+        scores, loss = self.pred_layer(masked_tensor, x_target, y_target, get_scores)
         return scores, loss
 
     def generate(self, src_enc, src_len, tgt_lang_id, max_len=200, sample_temperature=None):
