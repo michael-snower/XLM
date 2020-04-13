@@ -23,6 +23,7 @@ from .utils import parse_lambda_config, update_lambdas
 from .model.memory import HashingMemory
 from .model.transformer import TransformerFFN
 
+from pdb import set_trace as bp
 
 logger = getLogger()
 
@@ -350,6 +351,26 @@ class Trainer(object):
             x2[:l[i] - 1, i].copy_(x2[:l[i] - 1, i][torch.from_numpy(permutation)])
         return x2, l
 
+    def keypoint_shuffle(self, x, l):
+        if self.params.word_shuffle == 0:
+            return x, y, l
+
+        # define noise word scores
+        noise = np.random.uniform(0, self.params.word_shuffle, size=(x.size(0) - 1, x.size(1)))
+        noise[0] = -1  # do not move start sentence symbol
+
+        assert self.params.word_shuffle > 1
+        x2 = x.clone()
+        y2 = y.clone()
+        for i in range(l.size(0)):
+            # generate a random permutation
+            scores = np.arange(l[i] - 1) + noise[:l[i] - 1, i]
+            permutation = scores.argsort()
+            # shuffle words
+            x2[:l[i] - 1, i].copy_(y2[:l[i] - 1, i][torch.from_numpy(permutation)])
+            y2[:l[i] - 1, i].copy_(y2[:l[i] - 1, i][torch.from_numpy(permutation)])
+        return x2, y2, l
+
     def word_dropout(self, x, l):
         """
         Randomly drop input words.
@@ -385,6 +406,51 @@ class Trainer(object):
             x2[:l2[i], i].copy_(torch.LongTensor(sentences[i]))
         return x2, l2
 
+    def keypoint_dropout(self, x, y, l):
+        if self.params.word_dropout == 0:
+            return x, y, l
+        assert 0 < self.params.word_dropout < 1
+
+        # define words to drop
+        eos = self.params.eos_index
+        assert (x[0] == eos).sum() == l.size(0)
+        assert (y[0] == eos).sum() == l.size(0)
+        keep = np.random.rand(x.size(0) - 1, x.size(1)) >= self.params.word_dropout
+        keep[0] = 1  # do not drop the start sentence symbol
+
+        new_xs = []
+        new_ys = []
+        lengths = []
+        for i in range(l.size(0)):
+            assert x[l[i] - 1, i] == eos
+            assert y[l[i] - 1, i] == eos
+            x_points = x[:l[i] - 1, i].tolist()
+            y_points = y[:l[i] - 1, i].tolist()
+            # randomly drop words from the input
+            new_x = [w for j, w in enumerate(x_points) if keep[j, i]]
+            new_y = [w for j, w in enumerate(y_points) if keep[j, i]]
+            # we need to have at least one word in the sentence (more than the start / end sentence symbols)
+            rand_indices = np.random.randint(1, len(x_points))
+            if len(new_x) == 1:
+                new_x.append(x_points[rand_indices])
+            new_x.append(eos)
+            if len(new_y) == 1:
+                new_y.append(y_points[rand_indices])
+            new_y.append(eos)
+            assert len(new_x) >= 3 and new_x[0] == eos and new_x[-1] == eos
+            assert len(new_y) >= 3 and new_y[0] == eos and new_y[-1] == eos
+            new_xs.append(new_x)
+            new_ys.append(new_y)
+            lengths.append(len(new_x))
+        # re-construct input
+        l2 = torch.LongTensor(lengths)
+        x2 = torch.LongTensor(l2.max(), l2.size(0)).fill_(self.params.pad_index)
+        y2 = torch.LongTensor(l2.max(), l2.size(0)).fill_(self.params.pad_index)
+        for i in range(l2.size(0)):
+            x2[:l2[i], i].copy_(torch.LongTensor(new_xs[i]))
+            y2[:l2[i], i].copy_(torch.LongTensor(new_ys[i]))
+        return x2, y2, l2        
+
     def word_blank(self, x, l):
         """
         Randomly blank input words.
@@ -414,6 +480,45 @@ class Trainer(object):
             x2[:l[i], i].copy_(torch.LongTensor(sentences[i]))
         return x2, l
 
+    def keypoint_blank(self, x, y, l):
+        """
+        Randomly blank input words.
+        """
+        if self.params.word_blank == 0:
+            return x, y, l
+        assert 0 < self.params.word_blank < 1
+
+        # define words to blank
+        eos = self.params.eos_index
+        assert (x[0] == eos).sum() == l.size(0)
+        assert (y[0] == eos).sum() == l.size(0)
+        keep = np.random.rand(x.size(0) - 1, x.size(1)) >= self.params.word_blank
+        keep[0] = 1  # do not blank the start sentence symbol
+
+        new_xs = []
+        new_ys = []
+        for i in range(l.size(0)):
+            assert x[l[i] - 1, i] == eos
+            assert y[l[i] - 1, i] == eos
+            x_points = x[:l[i] - 1, i].tolist()
+            y_points = y[:l[i] - 1, i].tolist()
+            # randomly blank words from the input
+            new_x = [w if keep[j, i] else self.params.mask_index for j, w in enumerate(x_points)]
+            new_y = [w if keep[j, i] else self.params.mask_index for j, w in enumerate(y_points)]
+            new_x.append(eos)
+            new_y.append(eos)
+            assert len(new_x) == l[i] and new_x[0] == eos and new_x[-1] == eos
+            assert len(new_y) == l[i] and new_y[0] == eos and new_y[-1] == eos
+            new_xs.append(new_x)
+            new_ys.append(new_y)
+        # re-construct input
+        x2 = torch.LongTensor(l.max(), l.size(0)).fill_(self.params.pad_index)
+        y2 = torch.LongTensor(l.max(), l.size(0)).fill_(self.params.pad_index)
+        for i in range(l.size(0)):
+            x2[:l[i], i].copy_(torch.LongTensor(new_xs[i]))
+            y2[:l[i], i].copy_(torch.LongTensor(new_ys[i]))
+        return x2, y2, l
+
     def add_noise(self, words, lengths):
         """
         Add noise to the encoder input.
@@ -425,13 +530,9 @@ class Trainer(object):
 
     def add_keypoint_noise(self, x, y, lengths):
         # x
-        x, lengths = self.word_shuffle(x, lengths)
-        x, lengths = self.word_dropout(x, lengths)
-        x, lengths = self.word_blank(x, lengths)
-        # y
-        y, lengths = self.word_shuffle(y, lengths)
-        y, lengths = self.word_dropout(y, lengths)
-        y, lengths = self.word_blank(y, lengths)    
+        x, y, lengths = self.keypoint_shuffle(x, lengths)
+        x, y, lengths = self.keypoint_dropout(x, lengths)
+        x, y, lengths = self.keypoint_blank(x, lengths)  
         return x, y, lengths        
 
     def mask_out(self, x, lengths):
