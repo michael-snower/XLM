@@ -209,6 +209,11 @@ def get_keypoints(mask_path, num_keypoints, preprocessor, domain, same_size=True
         return None, None, mask, bbox
     y = keypoints[::step, 0]
     x = keypoints[::step, 1]
+    if keypoints % num_keypoints != 0:
+        y.append(keypoints[-1, 0])
+        x.append(keypoints[-1, 1])
+    assert len(y) == num_keypoints
+    assert len(x) == num_keypoints
     #angles = angle_from_center(x, y, preprocessor.image_w, preprocessor.image_h)
     # coord_ids = np.argsort(angles)
     # angles = np.sort(angles)

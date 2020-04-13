@@ -962,6 +962,7 @@ class EncDecTrainer(Trainer):
         alen = torch.arange(len2.max(), dtype=torch.long, device=len2.device)
         pred_mask = alen[:, None] < len2[None] - 1  # do not predict anything given the last target word
         x_target = x2[1:].masked_select(pred_mask[:-1])
+        x_target = x2[1:, :].masked_select(pred_mask[:-1, :])
         y_target = y2[1:].masked_select(pred_mask[:-1])
         assert len(x_target) == (len2 - 1).sum().item()
         assert len(y_target) == (len2 - 1).sum().item()
@@ -989,12 +990,6 @@ class EncDecTrainer(Trainer):
         self.n_sentences += params.batch_size
         self.stats['processed_s'] += len2.size(0)
         self.stats['processed_w'] += (len2 - 1).sum().item()
-
-    def keypoint_mt_step(self, lang1, lang2, lambda_coeff):
-
-        # smooth l1 loss
-        # low res if necessary
-        pass
 
     def bt_step(self, lang1, lang2, lang3, lambda_coeff):
         """

@@ -175,7 +175,7 @@ class XYPredLayer(nn.Module):
 
         bp()
         x_loss = self.loss_fn(x_preds, x_target)
-        y_loss = self.loss_fn(y_preds, y_target)
+        y_loss = self.loss_fn(y_preds, y_target) # sub pixel accuracy
 
         loss = x_loss + y_loss
 
