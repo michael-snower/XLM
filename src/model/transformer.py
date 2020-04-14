@@ -160,8 +160,8 @@ class XYPredLayer(nn.Module):
         self.pad_index = params.pad_index
         dim = params.emb_dim
 
-        self.x_proj = Linear(dim, params.num_keypoints, bias=True)
-        self.y_proj = Linear(dim, params.num_keypoints, bias=True)
+        self.x_proj = Linear(dim, 1, bias=True)
+        self.y_proj = Linear(dim, 1, bias=True)
 
         self.loss_fn = nn.SmoothL1Loss(reduction="mean")
 
@@ -172,12 +172,15 @@ class XYPredLayer(nn.Module):
         assert (x_target == self.pad_index).sum().item() == 0
         assert (y_target == self.pad_index).sum().item() == 0
 
-        x_preds = self.x_proj(hidden_state)
-        y_preds = self.y_proj(hidden_state)
+        # batch first
+        hidden_state = hidden_state.permute(1, 0, 2)
+
+        x_preds = self.x_proj(hidden_state).squeeze(-1)
+        y_preds = self.y_proj(hidden_state).squeeze(-1)
 
         bp()
-        x_loss = self.loss_fn(x_preds, x_target)
-        y_loss = self.loss_fn(y_preds, y_target) # sub pixel accuracy
+        x_loss = self.loss_fn(x_preds.flatten(), x_target)
+        y_loss = self.loss_fn(y_preds.flatten(), y_target) # sub pixel accuracy
 
         loss = x_loss + y_loss
 

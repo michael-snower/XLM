@@ -951,6 +951,8 @@ class EncDecTrainer(Trainer):
                 (x1, len1) = self.add_noise(x1, len1)
             else:
                 (x1, y1, len1) = self.get_batch('ae', lang1)
+                x1, y1 = x1[1:-1], y1[1:-1] # ignore eos
+                len1 -= 2
                 (x2, y2, len2) = (x1, y1, len1)
                 (x1, y1, len1) = self.add_keypoint_noise(x1, y1, len1)                
         else:
@@ -962,11 +964,14 @@ class EncDecTrainer(Trainer):
         # target words to predict
         alen = torch.arange(len2.max(), dtype=torch.long, device=len2.device)
         # do not make predictions for 1st or last eos
-        pred_mask = alen[:, None] < len2[None] - 2 
-        x_target = x2[1:].masked_select(pred_mask[:-1])
-        y_target = y2[1:].masked_select(pred_mask[:-1])
-        assert len(x_target) == (len2 - 1).sum().item()
-        assert len(y_target) == (len2 - 1).sum().item()
+        # pred_mask = alen[:, None] < len2[None] - 2
+        # x_target = x2[1:].masked_select(pred_mask[:-1])
+        # y_target = y2[1:].masked_select(pred_mask[:-1])
+
+        x_target = x2.clone()
+        y_target = y2.clone()
+        assert len(x_target) == (len2 - 2).sum().item()
+        assert len(y_target) == (len2 - 2).sum().item()
 
         # cuda
         x1, y1, len1, langs1, x2, y2, len2, langs2, x_target, y_target = \
