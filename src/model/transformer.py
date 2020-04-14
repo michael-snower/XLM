@@ -174,15 +174,15 @@ class XYPredLayer(nn.Module):
 
         # batch first
         hidden_state = hidden_state.permute(1, 0, 2)
-        x_target = x_target.permute(1, 0, 2)
-        y_target = y_target.permute(1, 0, 2)
+        x_target = x_target.permute(1, 0)
+        y_target = y_target.permute(1, 0)
 
         x_preds = self.x_proj(hidden_state).squeeze(-1)
         y_preds = self.y_proj(hidden_state).squeeze(-1)
 
         bp()
-        x_loss = self.loss_fn(x_preds.flatten(), x_target)
-        y_loss = self.loss_fn(y_preds.flatten(), y_target) # sub pixel accuracy
+        x_loss = self.loss_fn(x_preds, x_target.float())
+        y_loss = self.loss_fn(y_preds, y_target.float()) # sub pixel accuracy
 
         loss = x_loss + y_loss
 

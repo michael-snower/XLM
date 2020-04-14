@@ -968,8 +968,8 @@ class EncDecTrainer(Trainer):
         #assert len(x_target) == (len2).sum().item() fix these, should be x_target == eos, I think
         #assert len(y_target) == (len2).sum().item()
 
-        x_target = x2.clone()
-        y_target = y2.clone()
+        x_target = x2.clone().float()
+        y_target = y2.clone().float()
 
         # cuda
         x1, y1, len1, langs1, x2, y2, len2, langs2, x_target, y_target = \
