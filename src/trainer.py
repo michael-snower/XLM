@@ -951,10 +951,9 @@ class EncDecTrainer(Trainer):
                 (x1, len1) = self.add_noise(x1, len1)
             else:
                 (x1, y1, len1) = self.get_batch('ae', lang1)
-                x1, y1 = x1[1:-1], y1[1:-1] # ignore eos
-                len1 -= 2
-                (x2, y2, len2) = (x1, y1, len1)
-                (x1, y1, len1) = self.add_keypoint_noise(x1, y1, len1)                
+                (x2, y2, len2) = (x1[1:-1], y1[1:-1], len1 - 2) # ignore eos
+                (x1, y1, len1) = self.add_keypoint_noise(x1, y1, len1)
+                x1, y1, len1 = x1[1:-1], y1[1:-1], len1 - 2 # ignore eos          
         else:
             (x1, len1), (x2, len2) = self.get_batch('mt', lang1, lang2)
 
