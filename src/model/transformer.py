@@ -169,21 +169,31 @@ class XYPredLayer(nn.Module):
         """
         Compute the loss, and optionally the scores.
         """
-        assert (x_target == self.pad_index).sum().item() == 0
-        assert (y_target == self.pad_index).sum().item() == 0
 
         # batch first
         hidden_state = hidden_state.permute(1, 0, 2)
-        x_target = x_target.permute(1, 0)
-        y_target = y_target.permute(1, 0)
 
         x_preds = self.x_proj(hidden_state).squeeze(-1)
         y_preds = self.y_proj(hidden_state).squeeze(-1)
 
         if x_target is not None and y_target is not None:
+
+            assert (x_target == self.pad_index).sum().item() == 0
+            assert (y_target == self.pad_index).sum().item() == 0
+
+            # scale to [0, 1]
+            x_target = x_target.permute(1, 0) / (params.num_keypoints - 1)
+            y_target = y_target.permute(1, 0) / (params.num_keypoints - 1)
+
+            assert x_target.max() <= 1.
+            assert y_target.max() <= 1.
+            assert x_target.min() >= 0
+            assert y_target.min() >= 0
+
             x_loss = self.loss_fn(x_preds, x_target.float())
             y_loss = self.loss_fn(y_preds, y_target.float()) # sub pixel accuracy
             loss = x_loss + y_loss
+
         else:
             loss = None
 

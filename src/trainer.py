@@ -1012,7 +1012,6 @@ class EncDecTrainer(Trainer):
 
         # generate source batch
         x1, y1, len1 = self.get_batch('bt', lang1)
-        bp()
         x1, y1, len1 = x1[1:-1], y1[1:-1], len1 - 2
         langs1 = x1.clone().fill_(lang1_id)
 
@@ -1029,10 +1028,17 @@ class EncDecTrainer(Trainer):
             # encode source sentence and translate it
             enc1 = _encoder('fwd', x=x1, y=y1, lengths=len1, langs=langs1, causal=False)
             enc1 = enc1.transpose(0, 1)
-            langs2 = x2.clone().fill_(lang2_id)
-            dec1 = _decoder('fwd', x=x1, y=y1, lengths=len2, langs=langs2, causal=True, src_enc=enc1, src_len=len1)
+            langs2 = x1.clone().fill_(lang2_id)
+            dec1 = _decoder('fwd', x=x1, y=y1, lengths=len1, langs=langs2, causal=True, src_enc=enc1, src_len=len1)
             pred, _ = _decoder('predict', tensor=dec1, x_target=None, y_target=None, get_scores=False)
             x2, y2 = pred
+            x2 = x2.transpose(0, 1)
+            y2 = y2.transpose(0, 1)
+
+            # clip and scale so they can be input as embeddings
+            x2 = (torch.clamp(x2, min=0., max=1.) * (params.num_keypoints - 1)).long()
+            y2 = (torch.clamp(y2, min=0., max=1.) * (params.num_keypoints - 1)).long()
+
             len2 = len1.clone()
 
             # free CUDA memory
@@ -1043,7 +1049,6 @@ class EncDecTrainer(Trainer):
             self.decoder.train()
 
         # encode generate sentence
-        bp() # make sure langs2 has not changed
         enc2 = self.encoder('fwd', x=x2, y=y2, lengths=len2, langs=langs2, causal=False)
         enc2 = enc2.transpose(0, 1)
 
