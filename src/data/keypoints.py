@@ -197,28 +197,37 @@ def create_keypoint_dictionary(params):
     return dico
 
 def get_keypoints(mask_path, num_keypoints, preprocessor, domain, same_size=True):
+
+    # preprocess mask
     mask = cv.imread(mask_path)
     if same_size is True:
         mask, bbox = preprocessor.process_mask(mask, domain)
+
+    # get keypoitns from mask
     outline = cv.Laplacian(mask, cv.CV_32F)
     outline = outline.sum(axis=-1) / 3.
     contours, _ = cv.findContours(outline.astype(np.uint8), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_NONE)
     keypoints = contours[0].squeeze()
+
+    # sample keypoints
     step = len(keypoints) // num_keypoints
     if step <= 0:
         return None, None, mask, bbox
     y = keypoints[::step, 0]
     x = keypoints[::step, 1]
-    if keypoints % num_keypoints != 0:
-        y.append(keypoints[-1, 0])
-        x.append(keypoints[-1, 1])
+
+    # remove extra
+    y = y[:num_keypoints]
+    x = x[:num_keypoints]
     assert len(y) == num_keypoints
     assert len(x) == num_keypoints
+
     #angles = angle_from_center(x, y, preprocessor.image_w, preprocessor.image_h)
     # coord_ids = np.argsort(angles)
     # angles = np.sort(angles)
     # y = y[coord_ids]
     # x = x[coord_ids]
+
     keypoint_vis = np.zeros_like(outline, dtype=np.float32)
     for i, (_x, _y) in enumerate(zip(x, y)):
         color = i / 360. * 235. + 20.

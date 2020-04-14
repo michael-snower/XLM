@@ -153,13 +153,15 @@ class XYPredLayer(nn.Module):
     Prediction layer (cross_entropy or adaptive_softmax).
     """
     def __init__(self, params):
+
         super().__init__()
+
         self.n_words = params.n_words
         self.pad_index = params.pad_index
         dim = params.emb_dim
 
-        self.x_proj = Linear(dim, 1, bias=True)
-        self.y_proj = Linear(dim, 1, bias=True)
+        self.x_proj = Linear(dim, params.num_keypoints, bias=True)
+        self.y_proj = Linear(dim, params.num_keypoints, bias=True)
 
         self.loss_fn = nn.SmoothL1Loss(reduction="mean")
 

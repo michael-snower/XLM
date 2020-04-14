@@ -955,14 +955,15 @@ class EncDecTrainer(Trainer):
                 (x1, y1, len1) = self.add_keypoint_noise(x1, y1, len1)                
         else:
             (x1, len1), (x2, len2) = self.get_batch('mt', lang1, lang2)
+
         langs1 = x1.clone().fill_(lang1_id)
         langs2 = x2.clone().fill_(lang2_id)
 
         # target words to predict
         alen = torch.arange(len2.max(), dtype=torch.long, device=len2.device)
-        pred_mask = alen[:, None] < len2[None] - 1  # do not predict anything given the last target word
+        # do not make predictions for 1st or last eos
+        pred_mask = alen[:, None] < len2[None] - 2 
         x_target = x2[1:].masked_select(pred_mask[:-1])
-        x_target = x2[1:, :].masked_select(pred_mask[:-1, :])
         y_target = y2[1:].masked_select(pred_mask[:-1])
         assert len(x_target) == (len2 - 1).sum().item()
         assert len(y_target) == (len2 - 1).sum().item()
