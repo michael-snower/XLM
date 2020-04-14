@@ -952,8 +952,7 @@ class EncDecTrainer(Trainer):
             else:
                 (x1, y1, len1) = self.get_batch('ae', lang1)
                 (x2, y2, len2) = (x1[1:-1], y1[1:-1], len1 - 2) # ignore eos
-                (x1, y1, len1) = self.add_keypoint_noise(x1, y1, len1)
-                x1, y1, len1 = x1[1:-1], y1[1:-1], len1 - 2 # ignore eos          
+                (x1, y1, len1) = self.add_keypoint_noise(x1, y1, len1)        
         else:
             (x1, len1), (x2, len2) = self.get_batch('mt', lang1, lang2)
 
@@ -961,16 +960,16 @@ class EncDecTrainer(Trainer):
         langs2 = x2.clone().fill_(lang2_id)
 
         # target words to predict
-        alen = torch.arange(len2.max(), dtype=torch.long, device=len2.device)
+        #alen = torch.arange(len2.max(), dtype=torch.long, device=len2.device)
         # do not make predictions for 1st or last eos
         # pred_mask = alen[:, None] < len2[None] - 2
         # x_target = x2[1:].masked_select(pred_mask[:-1])
         # y_target = y2[1:].masked_select(pred_mask[:-1])
+        #assert len(x_target) == (len2).sum().item() fix these, should be x_target == eos, I think
+        #assert len(y_target) == (len2).sum().item()
 
         x_target = x2.clone()
         y_target = y2.clone()
-        assert len(x_target) == (len2 - 2).sum().item()
-        assert len(y_target) == (len2 - 2).sum().item()
 
         # cuda
         x1, y1, len1, langs1, x2, y2, len2, langs2, x_target, y_target = \
@@ -984,7 +983,7 @@ class EncDecTrainer(Trainer):
         dec2 = self.decoder('fwd', x=x2, y=y2, lengths=len2, langs=langs2, causal=True, src_enc=enc1, src_len=len1)
 
         # loss
-        _, loss = self.decoder('predict', tensor=dec2, pred_mask=pred_mask, x_target=x_target, y_target=y_target, get_scores=False)
+        _, loss = self.decoder('predict', tensor=dec2, x_target=x_target, y_target=y_target, get_scores=False)
         self.stats[('AE-%s' % lang1) if lang1 == lang2 else ('MT-%s-%s' % (lang1, lang2))].append(loss.item())
         loss = lambda_coeff * loss
 

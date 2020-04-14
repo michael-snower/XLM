@@ -174,6 +174,8 @@ class XYPredLayer(nn.Module):
 
         # batch first
         hidden_state = hidden_state.permute(1, 0, 2)
+        x_target = x_target.permute(1, 0, 2)
+        y_target = y_target.permute(1, 0, 2)
 
         x_preds = self.x_proj(hidden_state).squeeze(-1)
         y_preds = self.y_proj(hidden_state).squeeze(-1)
@@ -481,7 +483,7 @@ class TransformerModel(nn.Module):
 
         return tensor
 
-    def predict(self, tensor, pred_mask, x_target, y_target, get_scores):
+    def predict(self, tensor, x_target, y_target, get_scores):
         """
         Given the last hidden state, compute word scores and/or the loss.
             `pred_mask` is a ByteTensor of shape (slen, bs), filled with 1 when
