@@ -157,6 +157,7 @@ class XYPredLayer(nn.Module):
         super().__init__()
 
         self.num_keypoints = params.num_keypoints
+        self.image_dim = params.image_dim
         self.pad_index = params.pad_index
         dim = params.emb_dim
 
@@ -182,8 +183,8 @@ class XYPredLayer(nn.Module):
             assert (y_target == self.pad_index).sum().item() == 0
 
             # scale to [0, 1]
-            x_target = x_target.permute(1, 0) / (self.num_keypoints - 1)
-            y_target = y_target.permute(1, 0) / (self.num_keypoints - 1)
+            x_target = x_target.permute(1, 0) / (self.image_dim - 1)
+            y_target = y_target.permute(1, 0) / (self.image_dim - 1)
 
             assert x_target.max() <= 1.
             assert y_target.max() <= 1.
