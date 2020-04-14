@@ -180,11 +180,12 @@ class XYPredLayer(nn.Module):
         x_preds = self.x_proj(hidden_state).squeeze(-1)
         y_preds = self.y_proj(hidden_state).squeeze(-1)
 
-        bp()
-        x_loss = self.loss_fn(x_preds, x_target.float())
-        y_loss = self.loss_fn(y_preds, y_target.float()) # sub pixel accuracy
-
-        loss = x_loss + y_loss
+        if x_target is not None and y_target is not None:
+            x_loss = self.loss_fn(x_preds, x_target.float())
+            y_loss = self.loss_fn(y_preds, y_target.float()) # sub pixel accuracy
+            loss = x_loss + y_loss
+        else:
+            loss = None
 
         return (x_preds, y_preds), loss
 
