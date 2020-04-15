@@ -424,7 +424,7 @@ class EncDecEvaluator(Evaluator):
         self.encoder = trainer.encoder
         self.decoder = trainer.decoder
 
-    def _generate(self, data_set, src_lang, targ_lang, params):
+    def _visualize(self, data_set, src_lang, targ_lang, params):
         src_id = params.lang2id[src_lang]
         target_id = params.lang2id[targ_lang]
         iterator = self.get_iterator(data_set, src_lang)
@@ -449,25 +449,25 @@ class EncDecEvaluator(Evaluator):
                 y = y[1:-1, :]
                 len1 -= 2
 
-                xlangs = x.clone().fill_(src_id)
+                src_langs = x.clone().fill_(src_id)
+                trg_langs = x.clone().fill_(target_id)
 
-                x, y, len1, xlangs = to_cuda(x, y, len1, xlangs)
+                x, y, len1, src_langs = to_cuda(x, y, len1, xlangs)
 
                 # encode source sentence
-                enc = self.encoder('fwd', x=x, y=y, lengths=len1, langs=xlangs, causal=False)
-                enc = enc.transpose(0, 1)
-                enc = enc.half() if params.fp16 else enc
+                enc = self.encoder('fwd', x=x, y=y, lengths=len1, langs=src_langs, causal=False)
 
-                langs2 = x.clone().fill_(target_id)
-                dec = self.decoder('fwd', x=x, y=y, lengths=len1, langs=langs2, causal=True, src_enc=enc, src_len=len1)
+                dec = self.decoder('fwd', x=x, y=y, lengths=len1, langs=trg_langs, causal=True, src_enc=enc, src_len=len1)
+
                 pred, _ = self.decoder('predict', tensor=dec, x_target=None, y_target=None, get_scores=False)
+
                 x_pred, y_pred = pred
 
                 # clip and scale so they can be input as embeddings
                 x_pred = (torch.clamp(x_pred, min=0., max=1.) * (params.num_keypoints - 1)).cpu().numpy()
                 y_pred = (torch.clamp(y_pred, min=0., max=1.) * (params.num_keypoints - 1)).cpu().numpy()
-                x = x.transpose(0, 1).cpu().numpy()
-                y = y.transpose(0, 1).cpu().numpy()
+                x = x.cpu().numpy()
+                y = y.cpu().numpy()
 
                 assert x_pred.shape[1] == y_pred.shape[1] == params.num_keypoints
 
@@ -501,8 +501,8 @@ class EncDecEvaluator(Evaluator):
         self.decoder.eval()
 
         # generate translations
-        self._generate(data_set, lang1, lang2, params)
-        self._generate(data_set, lang2, lang1, params)
+        self._visualize(data_set, lang1, lang2, params)
+        self._visualize(data_set, lang2, lang1, params)
 
     def evaluate_mt(self, scores, data_set, lang1, lang2, eval_bleu):
         """

@@ -170,28 +170,14 @@ class XYPredLayer(nn.Module):
         """
         Compute the loss, and optionally the scores.
         """
-        # batch first
-        hidden_state = hidden_state.permute(1, 0, 2)
 
         x_preds = self.x_proj(hidden_state).squeeze(-1)
         y_preds = self.y_proj(hidden_state).squeeze(-1)
 
         if x_target is not None and y_target is not None:
 
-            assert (x_target == self.pad_index).sum().item() == 0
-            assert (y_target == self.pad_index).sum().item() == 0
-
-            # batch first, scale to [0, 1]
-            x_target = x_target.permute(1, 0) / (self.image_dim - 1)
-            y_target = y_target.permute(1, 0) / (self.image_dim - 1)
-
-            assert x_target.max() <= 1.
-            assert y_target.max() <= 1.
-            assert x_target.min() >= 0
-            assert y_target.min() >= 0
-
-            x_loss = self.loss_fn(x_preds, x_target.float())
-            y_loss = self.loss_fn(y_preds, y_target.float()) # sub pixel accuracy
+            x_loss = self.loss_fn(x_preds, x_target)
+            y_loss = self.loss_fn(y_preds, y_target) # sub pixel accuracy
             loss = x_loss + y_loss
 
         else:
@@ -410,8 +396,8 @@ class TransformerModel(nn.Module):
         slen, bs = x.size()
         assert lengths.size(0) == bs
         assert lengths.max().item() <= slen
-        x = x.transpose(0, 1)  # batch size as dimension 0
-        y = y.transpose(0, 1)
+        # x = x.transpose(0, 1)  # batch size as dimension 0
+        # y = y.transpose(0, 1)
         assert (src_enc is None) == (src_len is None)
         if src_enc is not None:
             assert self.is_decoder

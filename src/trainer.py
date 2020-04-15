@@ -956,25 +956,23 @@ class EncDecTrainer(Trainer):
         else:
             (x1, len1), (x2, len2) = self.get_batch('mt', lang1, lang2)
 
+        # batch first
+        x1, y1 = x1.permute(1, 0), y1.permute(1, 0)
+        x2, y2 = x2.permute(1, 0), y2.permute(1, 0)
+
+        # generate langs
         langs1 = x1.clone().fill_(lang1_id)
         langs2 = x2.clone().fill_(lang2_id)
 
-        # target words to predict
-        #alen = torch.arange(len2.max(), dtype=torch.long, device=len2.device)
-        # do not make predictions for 1st or last eos
-        # pred_mask = alen[:, None] < len2[None] - 2
-        # x_target = x2[1:].masked_select(pred_mask[:-1])
-        # y_target = y2[1:].masked_select(pred_mask[:-1])
-        #assert len(x_target) == (len2).sum().item() fix these, should be x_target == eos, I think
-        #assert len(y_target) == (len2).sum().item()
-
-        x_target = x2.clone().float()
-        y_target = y2.clone().float()
-
-        # bp()
-        # for targ_index in range
-
-        # bp()
+        # prepare target: [0 to 1]
+        x_target = x_target.float() / (self.image_dim - 1)
+        y_target = y_target.float() / (self.image_dim - 1)
+        assert (x_target == self.pad_index).sum().item() == 0
+        assert (y_target == self.pad_index).sum().item() == 0
+        assert x_target.max() <= 1.
+        assert y_target.max() <= 1.
+        assert x_target.min() >= 0.
+        assert y_target.min() >= 0.
 
         # cuda
         x1, y1, len1, langs1, x2, y2, len2, langs2, x_target, y_target = \
@@ -982,7 +980,6 @@ class EncDecTrainer(Trainer):
 
         # encode source sentence
         enc1 = self.encoder('fwd', x=x1, y=y1, lengths=len1, langs=langs1, causal=False)
-        enc1 = enc1.transpose(0, 1)
 
         # decode target sentence
         dec2 = self.decoder('fwd', x=x2, y=y2, lengths=len2, langs=langs2, causal=True, src_enc=enc1, src_len=len1)
@@ -1018,10 +1015,25 @@ class EncDecTrainer(Trainer):
         # generate source batch
         x1, y1, len1 = self.get_batch('bt', lang1)
         x1, y1, len1 = x1[1:-1], y1[1:-1], len1 - 2
+
+        # batch first
+        x1, y1 = x1.permute(1, 0), y1.permute(1, 0)
+
         langs1 = x1.clone().fill_(lang1_id)
+        langs2 = x1.clone().fill_(lang2_id)
 
         # cuda
-        x1, y1, len1, langs1 = to_cuda(x1, y1, len1, langs1)
+        x1, y1, len1, langs1, langs2 = to_cuda(x1, y1, len1, langs1, langs2)
+
+        # prepare target: [0 to 1]
+        x_target = x1.float() / (self.image_dim - 1)
+        y_target = y1.float() / (self.image_dim - 1)
+        assert (x_target == self.pad_index).sum().item() == 0
+        assert (y_target == self.pad_index).sum().item() == 0
+        assert x_target.max() <= 1.
+        assert y_target.max() <= 1.
+        assert x_target.min() >= 0.
+        assert y_target.min() >= 0.
 
         # generate a translation
         with torch.no_grad():
@@ -1032,13 +1044,11 @@ class EncDecTrainer(Trainer):
 
             # encode source sentence and translate it
             enc1 = _encoder('fwd', x=x1, y=y1, lengths=len1, langs=langs1, causal=False)
-            enc1 = enc1.transpose(0, 1)
-            langs2 = x1.clone().fill_(lang2_id)
+
             dec1 = _decoder('fwd', x=x1, y=y1, lengths=len1, langs=langs2, causal=True, src_enc=enc1, src_len=len1)
+
             pred, _ = _decoder('predict', tensor=dec1, x_target=None, y_target=None, get_scores=False)
             x2, y2 = pred
-            x2 = x2.transpose(0, 1)
-            y2 = y2.transpose(0, 1)
 
             # clip and scale so they can be input as embeddings
             x2 = (torch.clamp(x2, min=0., max=1.) * (params.num_keypoints - 1)).long()
@@ -1055,20 +1065,12 @@ class EncDecTrainer(Trainer):
 
         # encode generate sentence
         enc2 = self.encoder('fwd', x=x2, y=y2, lengths=len2, langs=langs2, causal=False)
-        enc2 = enc2.transpose(0, 1)
-
-        # words to predict
-        # alen = torch.arange(len1.max(), dtype=torch.long, device=len1.device)
-        # pred_mask = alen[:, None] < len1[None] - 1  # do not predict anything given the last target word
-        # y1 = x1[1:].masked_select(pred_mask[:-1])
-
-        x_target, y_target = x1.clone(), y1.clone()
 
         # decode original sentence
         dec3 = self.decoder("fwd", x=x1, y=y1, lengths=len1, langs=langs1, causal=True, src_enc=enc2, src_len=len2)
 
         # loss
-        _, loss = self.decoder('predict', tensor=dec3, x_target=x1, y_target=y1, get_scores=False)
+        _, loss = self.decoder('predict', tensor=dec3, x_target=x_target, y_target=y_target, get_scores=False)
         self.stats[('BT-%s-%s-%s' % (lang1, lang2, lang3))].append(loss.item())
         loss = lambda_coeff * loss
 
