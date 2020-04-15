@@ -170,7 +170,6 @@ class XYPredLayer(nn.Module):
         """
         Compute the loss, and optionally the scores.
         """
-
         # batch first
         hidden_state = hidden_state.permute(1, 0, 2)
 
@@ -182,7 +181,7 @@ class XYPredLayer(nn.Module):
             assert (x_target == self.pad_index).sum().item() == 0
             assert (y_target == self.pad_index).sum().item() == 0
 
-            # scale to [0, 1]
+            # batch first, scale to [0, 1]
             x_target = x_target.permute(1, 0) / (self.image_dim - 1)
             y_target = y_target.permute(1, 0) / (self.image_dim - 1)
 

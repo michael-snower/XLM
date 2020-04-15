@@ -440,41 +440,43 @@ class EncDecEvaluator(Evaluator):
         logger.info("Saving eval images to {}".format(save_dir))
 
         with torch.no_grad():
+
+            cur_item_index = 0
+
             for batch in iterator:
-                x, xlen = batch
+                x, y, len1 = batch
 
                 xlangs = x.clone().fill_(src_id)
 
-                x, xlen, xlangs = to_cuda(x, xlen, xlangs)
+                x, y, len1, xlangs = to_cuda(x, y, len1, xlangs)
 
                 # encode source sentence
-                enc = self.encoder('fwd', x=x, lengths=xlen, langs=xlangs, causal=False)
+                enc = self.encoder('fwd', x=x, y=y, lengths=len1, langs=xlangs, causal=False)
                 enc = enc.transpose(0, 1)
                 enc = enc.half() if params.fp16 else enc
 
-                max_len = int(1.5 * xlen.max().item() + 10)
-                generated, lengths = self.decoder.generate(enc, xlen, target_id, max_len=max_len)
+                langs2 = x1.clone().fill_(lang2_id)
+                dec = _decoder('fwd', x=x, y=y, lengths=len1, langs=langs2, causal=True, src_enc=enc1, src_len=len1)
+                pred, _ = _decoder('predict', tensor=dec, x_target=None, y_target=None, get_scores=False)
+                x_pred, y_pred = pred
 
-                g = generated.cpu().numpy()
+                # clip and scale so they can be input as embeddings
+                x_pred = (torch.clamp(x_pred, min=0., max=1.) * (params.num_keypoints - 1)).cpu().numpy()
+                y_pred = (torch.clamp(y_pred, min=0., max=1.) * (params.num_keypoints - 1)).cpu().numpy()
                 x = x.cpu().numpy()
+                y = y.cpu().numpy()
 
-                for item_index in range(g.shape[1]):
+                assert len(x_pred.shape[1]) == len(y_pred.shape[1]) == params.num_keypoints
+
+                for batch_index in range(x_pred.shape[0]):
 
                     # get generated keypoint predictions
-                    one_generated = g[:, item_index]
-                    eos_indices = np.argwhere(one_generated == self.encoder.eos_index)
-                    start, end = eos_indices[0].item(), eos_indices[1].item()
-                    one_generated = one_generated[start + 1 : end]
-                    gen_x = one_generated // params.image_w
-                    gen_y = one_generated % params.image_h
+                    gen_x = x_pred[batch_index]
+                    gen_y = y_pred[batch_index]
 
                     # get source keypoints
-                    one_src = x[:, item_index]
-                    eos_indices = np.argwhere(one_src == self.encoder.eos_index)
-                    start, end = eos_indices[0].item(), eos_indices[1].item()
-                    one_src = one_src[start + 1 : end]
-                    src_x = one_src // params.image_w
-                    src_y = one_src % params.image_h                    
+                    src_x = x[batch_index]
+                    src_y = y[batch_index]                
 
                     # create vis
                     if params.eval_dir != "":
@@ -486,7 +488,7 @@ class EncDecEvaluator(Evaluator):
 
                         vis = np.concatenate([src_vis, gen_vis], axis=1)
 
-                        vis_path = os.path.join(save_dir, str(item_index) + ".jpg")
+                        vis_path = os.path.join(save_dir, str(cur_item_index) + ".jpg")
                         cv.imwrite(vis_path, vis)
 
     def evaluate_keypoints(self, data_set, lang1, lang2, params):
