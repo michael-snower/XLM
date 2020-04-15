@@ -445,6 +445,9 @@ class EncDecEvaluator(Evaluator):
 
             for batch in iterator:
                 x, y, len1 = batch
+                x = x[1:-1, :]
+                y = y[1:-1, :]
+                len1 -= 2
 
                 xlangs = x.clone().fill_(src_id)
 
@@ -455,9 +458,9 @@ class EncDecEvaluator(Evaluator):
                 enc = enc.transpose(0, 1)
                 enc = enc.half() if params.fp16 else enc
 
-                langs2 = x1.clone().fill_(lang2_id)
-                dec = _decoder('fwd', x=x, y=y, lengths=len1, langs=langs2, causal=True, src_enc=enc1, src_len=len1)
-                pred, _ = _decoder('predict', tensor=dec, x_target=None, y_target=None, get_scores=False)
+                langs2 = x.clone().fill_(target_id)
+                dec = self.decoder('fwd', x=x, y=y, lengths=len1, langs=langs2, causal=True, src_enc=enc, src_len=len1)
+                pred, _ = self.decoder('predict', tensor=dec, x_target=None, y_target=None, get_scores=False)
                 x_pred, y_pred = pred
 
                 # clip and scale so they can be input as embeddings
@@ -466,24 +469,24 @@ class EncDecEvaluator(Evaluator):
                 x = x.cpu().numpy()
                 y = y.cpu().numpy()
 
-                assert len(x_pred.shape[1]) == len(y_pred.shape[1]) == params.num_keypoints
+                assert x_pred.shape[1] == y_pred.shape[1] == params.num_keypoints
 
                 for batch_index in range(x_pred.shape[0]):
 
                     # get generated keypoint predictions
-                    gen_x = x_pred[batch_index]
-                    gen_y = y_pred[batch_index]
+                    gen_x = x_pred[batch_index].astype(np.int16)
+                    gen_y = y_pred[batch_index].astype(np.int16)
 
                     # get source keypoints
-                    src_x = x[batch_index]
-                    src_y = y[batch_index]                
+                    src_x = x[batch_index].astype(np.int16)
+                    src_y = y[batch_index].astype(np.int16)
 
                     # create vis
                     if params.eval_dir != "":
-                        gen_vis = np.zeros((params.image_h, params.image_w))
+                        gen_vis = np.zeros((params.image_dim, params.image_dim))
                         gen_vis[gen_y, gen_x] = 255
 
-                        src_vis = np.zeros((params.image_h, params.image_w))
+                        src_vis = np.zeros((params.image_dim, params.image_dim))
                         src_vis[src_y, src_x] = 255
 
                         vis = np.concatenate([src_vis, gen_vis], axis=1)
