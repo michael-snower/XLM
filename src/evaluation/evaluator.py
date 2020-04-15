@@ -449,23 +449,30 @@ class EncDecEvaluator(Evaluator):
                 y = y[1:-1, :]
                 len1 -= 2
 
+                # batch first
+                x, y = x.permute(1, 0), y.permute(1, 0)
+
                 src_langs = x.clone().fill_(src_id)
                 trg_langs = x.clone().fill_(target_id)
 
-                x, y, len1, src_langs = to_cuda(x, y, len1, xlangs)
+                x, y, len1, src_langs, trg_langs = to_cuda(x, y, len1, src_langs, trg_langs)
 
                 # encode source sentence
                 enc = self.encoder('fwd', x=x, y=y, lengths=len1, langs=src_langs, causal=False)
 
-                dec = self.decoder('fwd', x=x, y=y, lengths=len1, langs=trg_langs, causal=True, src_enc=enc, src_len=len1)
+                x_null = x.new(x1.shape)
+                y_null = y.new(y1.shape)
+                x_null.fill_(params.pad_index)
+                y_null.fill_(params.pad_index)
+                dec = self.decoder('fwd', x=x_null, y=y_null, lengths=len1, langs=trg_langs, causal=True, src_enc=enc, src_len=len1)
 
                 pred, _ = self.decoder('predict', tensor=dec, x_target=None, y_target=None, get_scores=False)
 
                 x_pred, y_pred = pred
 
                 # clip and scale so they can be input as embeddings
-                x_pred = (torch.clamp(x_pred, min=0., max=1.) * (params.num_keypoints - 1)).cpu().numpy()
-                y_pred = (torch.clamp(y_pred, min=0., max=1.) * (params.num_keypoints - 1)).cpu().numpy()
+                x_pred = (torch.clamp(x_pred, min=0., max=1.) * (params.image_dim - 1)).cpu().numpy()
+                y_pred = (torch.clamp(y_pred, min=0., max=1.) * (params.image_dim - 1)).cpu().numpy()
                 x = x.cpu().numpy()
                 y = y.cpu().numpy()
 

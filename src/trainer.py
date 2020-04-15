@@ -965,10 +965,10 @@ class EncDecTrainer(Trainer):
         langs2 = x2.clone().fill_(lang2_id)
 
         # prepare target: [0 to 1]
-        x_target = x_target.float() / (self.image_dim - 1)
-        y_target = y_target.float() / (self.image_dim - 1)
-        assert (x_target == self.pad_index).sum().item() == 0
-        assert (y_target == self.pad_index).sum().item() == 0
+        x_target = x2.float() / (params.image_dim - 1)
+        y_target = y2.float() / (params.image_dim - 1)
+        assert (x_target == params.pad_index).sum().item() == 0
+        assert (y_target == params.pad_index).sum().item() == 0
         assert x_target.max() <= 1.
         assert y_target.max() <= 1.
         assert x_target.min() >= 0.
@@ -1026,10 +1026,10 @@ class EncDecTrainer(Trainer):
         x1, y1, len1, langs1, langs2 = to_cuda(x1, y1, len1, langs1, langs2)
 
         # prepare target: [0 to 1]
-        x_target = x1.float() / (self.image_dim - 1)
-        y_target = y1.float() / (self.image_dim - 1)
-        assert (x_target == self.pad_index).sum().item() == 0
-        assert (y_target == self.pad_index).sum().item() == 0
+        x_target = x1.float() / (params.image_dim - 1)
+        y_target = y1.float() / (params.image_dim - 1)
+        assert (x_target == params.pad_index).sum().item() == 0
+        assert (y_target == params.pad_index).sum().item() == 0
         assert x_target.max() <= 1.
         assert y_target.max() <= 1.
         assert x_target.min() >= 0.
@@ -1045,7 +1045,11 @@ class EncDecTrainer(Trainer):
             # encode source sentence and translate it
             enc1 = _encoder('fwd', x=x1, y=y1, lengths=len1, langs=langs1, causal=False)
 
-            dec1 = _decoder('fwd', x=x1, y=y1, lengths=len1, langs=langs2, causal=True, src_enc=enc1, src_len=len1)
+            x_null = x1.new(x1.shape)
+            y_null = x1.new(y1.shape)
+            x_null.fill_(params.pad_index)
+            y_null.fill_(params.pad_index)
+            dec1 = _decoder('fwd', x=x_null, y=y_null, lengths=len1, langs=langs2, causal=True, src_enc=enc1, src_len=len1)
 
             pred, _ = _decoder('predict', tensor=dec1, x_target=None, y_target=None, get_scores=False)
             x2, y2 = pred

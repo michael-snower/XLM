@@ -393,7 +393,7 @@ class TransformerModel(nn.Module):
         # mask = x != self.pad_index
 
         # check inputs
-        slen, bs = x.size()
+        bs, slen = x.size()
         assert lengths.size(0) == bs
         assert lengths.max().item() <= slen
         # x = x.transpose(0, 1)  # batch size as dimension 0
@@ -418,8 +418,7 @@ class TransformerModel(nn.Module):
 
         # langs
         if langs is not None:
-            assert langs.size() == (slen, bs)
-            langs = langs.transpose(0, 1)
+            assert langs.size() == (bs, slen) 
 
         # do not recompute cached elements
         if cache is not None:
@@ -474,9 +473,6 @@ class TransformerModel(nn.Module):
         # update cache length
         if cache is not None:
             cache['slen'] += tensor.size(1)
-
-        # move back sequence length to dimension 0
-        tensor = tensor.transpose(0, 1)
 
         return tensor
 
