@@ -213,14 +213,14 @@ def get_keypoints(mask_path, num_keypoints, preprocessor, domain, same_size=True
     step = len(keypoints) // num_keypoints
     if step <= 0:
         return None, None, mask, bbox
-    y = keypoints[::step, 0]
-    x = keypoints[::step, 1]
+    x = keypoints[::step, 0]
+    y = keypoints[::step, 1]
 
     # remove extra
-    y = y[:num_keypoints]
     x = x[:num_keypoints]
-    assert len(y) == num_keypoints
+    y = y[:num_keypoints]
     assert len(x) == num_keypoints
+    assert len(y) == num_keypoints
 
     #angles = angle_from_center(x, y, preprocessor.image_w, preprocessor.image_h)
     # coord_ids = np.argsort(angles)
@@ -231,7 +231,7 @@ def get_keypoints(mask_path, num_keypoints, preprocessor, domain, same_size=True
     keypoint_vis = np.zeros_like(outline, dtype=np.float32)
     for i, (_x, _y) in enumerate(zip(x, y)):
         color = i / 360. * 235. + 20.
-        keypoint_vis[_x, _y] = color
+        keypoint_vis[_y, _x] = color
     return (x, y), keypoint_vis, mask, bbox
 
 

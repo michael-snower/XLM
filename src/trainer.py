@@ -971,6 +971,11 @@ class EncDecTrainer(Trainer):
         x_target = x2.clone().float()
         y_target = y2.clone().float()
 
+        # bp()
+        # for targ_index in range
+
+        # bp()
+
         # cuda
         x1, y1, len1, langs1, x2, y2, len2, langs2, x_target, y_target = \
             to_cuda(x1, y1, len1, langs1, x2, y2, len2, langs2, x_target, y_target)

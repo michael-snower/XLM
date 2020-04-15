@@ -466,8 +466,8 @@ class EncDecEvaluator(Evaluator):
                 # clip and scale so they can be input as embeddings
                 x_pred = (torch.clamp(x_pred, min=0., max=1.) * (params.num_keypoints - 1)).cpu().numpy()
                 y_pred = (torch.clamp(y_pred, min=0., max=1.) * (params.num_keypoints - 1)).cpu().numpy()
-                x = x.cpu().numpy()
-                y = y.cpu().numpy()
+                x = x.transpose(0, 1).cpu().numpy()
+                y = y.transpose(0, 1).cpu().numpy()
 
                 assert x_pred.shape[1] == y_pred.shape[1] == params.num_keypoints
 
@@ -493,6 +493,8 @@ class EncDecEvaluator(Evaluator):
 
                         vis_path = os.path.join(save_dir, str(cur_item_index) + ".jpg")
                         cv.imwrite(vis_path, vis)
+
+                    cur_item_index += 1
 
     def evaluate_keypoints(self, data_set, lang1, lang2, params):
         self.encoder.eval()
